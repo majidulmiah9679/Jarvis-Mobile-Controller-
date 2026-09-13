@@ -18,6 +18,7 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -26,15 +27,12 @@ jobs:
 
       - name: Auto Setup Web & Capacitor
         run: |
-          # package.json না থাকলে অটো তৈরি করবে
           if [ ! -f "package.json" ]; then
             npm init -y
           fi
 
-          # Capacitor প্যাকেজ ইন্সটল
           npm install @capacitor/core @capacitor/cli @capacitor/android
 
-          # www ডিরেক্টরি এবং index.html প্রস্তুত করা
           mkdir -p www
           if [ -f "index.html" ]; then
             cp -r * www/ 2>/dev/null || true
@@ -42,13 +40,11 @@ jobs:
             echo "<!DOCTYPE html><html><head><title>JARVIS</title></head><body><h1>JARVIS Mobile Online</h1></body></html>" > www/index.html
           fi
 
-          # capacitor.config.json তৈরি
           cat <<EOF > capacitor.config.json
           {
             "appId": "com.jarvis.controller",
             "appName": "JARVIS Controller",
-            "webDir": "www",
-            "bundledWebRuntime": false
+            "webDir": "www"
           }
           EOF
 
@@ -58,7 +54,8 @@ jobs:
           npx cap sync android
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew clean --no-daemon
+          ./gradlew assembleDebug --no-daemon --no-parallel --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
