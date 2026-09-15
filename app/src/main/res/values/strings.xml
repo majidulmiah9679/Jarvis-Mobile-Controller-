@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">J.A.R.V.I.S.</string>
+    <string name="accessibility_description">JARVIS Controller Accessibility Automation Service for automated clicks and screen interaction.</string>
+</resources>

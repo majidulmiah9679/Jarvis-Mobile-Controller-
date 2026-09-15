@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer energy ring -->
+    <path
+        android:pathData="M54,54m-33,0a33,33 0 1,0 66,0a33,33 0 1,0 -66,0"
+        android:strokeWidth="3.5"
+        android:strokeColor="#00E5FF"
+        android:fillColor="#00000000" />
+
+    <!-- Concentric secondary ring -->
+    <path
+        android:pathData="M54,54m-26,0a26,26 0 1,0 52,0a26,26 0 1,0 -52,0"
+        android:strokeWidth="1.5"
+        android:strokeColor="#80D8FF"
+        android:fillColor="#00000000" />
+
+    <!-- Arc Reactor Core segments (8 radiating segments) -->
+    <path
+        android:pathData="M54,23v7 M54,78v7 M23,54h7 M78,54h7 M32,32l5,5 M71,71l5,5 M76,32l-5,5 M37,71l-5,5"
+        android:strokeWidth="2.5"
+        android:strokeColor="#00E5FF" />
+
+    <!-- Central energy chamber -->
+    <path
+        android:pathData="M54,54m-16,0a16,16 0 1,0 32,0a16,16 0 1,0 -32,0"
+        android:strokeWidth="2.5"
+        android:strokeColor="#00B0FF"
+        android:fillColor="#1500E5FF" />
+
+    <!-- Inner reactor core triangle / power nucleus -->
+    <path
+        android:pathData="M54,42 L64,60 L44,60 Z"
+        android:strokeWidth="1.8"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#8000E5FF" />
+
+    <!-- Center pure spark -->
+    <path
+        android:pathData="M54,54m-3.5,0a3.5,3.5 0 1,0 7,0a3.5,3.5 0 1,0 -7,0"
+        android:fillColor="#FFFFFF" />
+</vector>
+
