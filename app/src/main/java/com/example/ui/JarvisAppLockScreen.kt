@@ -503,13 +503,11 @@ fun VoicePasswordChallengeDialog(
                                 isListening = false
                                 if (spoken.trim().equals("Boss", ignoreCase = true) || spoken.contains("boss", ignoreCase = true)) {
                                     authFailed = false
-                                    viewModel.speak("Access Granted. Welcome Boss.")
                                     viewModel.toast("Access Granted: Welcome Boss")
                                     onAuthenticated()
                                 } else {
                                     authFailed = true
                                     errorMessage = "INCORRECT VOICE PASSCODE"
-                                    viewModel.speak("Access Denied! Intruder Blocked.")
                                     viewModel.toast("Access Denied! Intruder Detected")
                                 }
                             }
@@ -565,13 +563,11 @@ fun VoicePasswordChallengeDialog(
                                 val trimmed = spokenInput.trim()
                                 if (trimmed.equals("Boss", ignoreCase = true) || trimmed.contains("boss", ignoreCase = true)) {
                                     authFailed = false
-                                    viewModel.speak("Access Granted. Welcome Boss.")
                                     viewModel.toast("Access Granted: Welcome Boss")
                                     onAuthenticated()
                                 } else {
                                     authFailed = true
                                     errorMessage = "INCORRECT PASSCODE: '$trimmed'"
-                                    viewModel.speak("Access Denied! Intruder Blocked.")
                                     viewModel.toast("Access Denied! Intruder Detected")
                                 }
                             }
@@ -604,9 +600,8 @@ fun VoicePasswordChallengeDialog(
 
                     Button(
                         onClick = {
-                            // Instant Boss override for testing
+                            // Instant Boss override
                             authFailed = false
-                            viewModel.speak("Access Granted. Welcome Boss.")
                             viewModel.toast("Access Granted: Welcome Boss")
                             onAuthenticated()
                         },

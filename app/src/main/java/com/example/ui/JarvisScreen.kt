@@ -341,32 +341,21 @@ fun MainAppScreen(viewModel: JarvisViewModel) {
         }
 
         // [FEATURE 44 - SMART NOTIFICATION READER] Floating Pulse Mic Button at bottom right
-        FloatingPulseMicButton(
-            isListening = viewModel.isListening,
-            onClick = {
-                viewModel.toggleListeningState()
-                viewModel.logAction(if (viewModel.isListening) "FLOATING MIC: LISTENING" else "FLOATING MIC: STOPPED")
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 148.dp)
-        )
-
-        // Floating Live Talk round pill button ("side gol round kore")
-        LiveTalkRoundFloatingBar(
-            viewModel = viewModel,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 84.dp)
-        )
-
-        // Rounded 2-Way Live Talk interactive orb modal
-        if (viewModel.isLiveOrbActive) {
-            LiveTalkRoundOrbDialog(
-                viewModel = viewModel,
-                onDismissRequest = { viewModel.toggleLiveOrb() }
+        // Kept intact, but hidden as requested: zero display on Main UI (display: none)
+        if (false) {
+            FloatingPulseMicButton(
+                isListening = viewModel.isListening,
+                onClick = {
+                    viewModel.toggleListeningState()
+                    viewModel.logAction(if (viewModel.isListening) "FLOATING MIC: LISTENING" else "FLOATING MIC: STOPPED")
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 148.dp)
             )
         }
+
+        // Floating Live Talk round pill button & modal - Completely HIDDEN / REMOVED from Main UI as requested
     }
 }
 
@@ -539,8 +528,6 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
                             Text(text = "VISION", color = Color(0xFF00FFFF), fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                         }
                     }
-
-                    LiveTalkRoundFloatingBar(viewModel = viewModel)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -2141,11 +2128,11 @@ fun JarvisNotificationReaderCard(viewModel: JarvisViewModel) {
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Test button
+            // Test button (Silent check - zero voice on click)
             OutlinedButton(
                 onClick = {
                     val app = if (selectedApp == "All") "WhatsApp" else selectedApp
-                    viewModel.speak("Boss, $app theke message: Boss, emergency update ready ache.")
+                    viewModel.logAction("Notification Reader Checked: $app")
                 },
                 shape = RoundedCornerShape(8.dp),
                 border = BorderStroke(1.dp, ArcCyan),

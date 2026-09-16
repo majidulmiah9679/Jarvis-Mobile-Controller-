@@ -175,10 +175,67 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     // Commander Hologram Avatar Photo state
     var userAvatarUriString by mutableStateOf<String?>(null)
 
+    // Voice Language Setting ("BN" = Bengali, "EN" = English)
+    var speechLanguage by mutableStateOf(prefs.getString("speech_language", "BN") ?: "BN")
+
+    // Touch & Button Talking Guide (PERMANENTLY DISABLED - zero voice feedback on UI clicks)
+    var isTouchVoiceGuideEnabled by mutableStateOf(false)
+
+    // Background Offline Wake-Word ("Hey Jarvis") - default false to prevent mic instability on app launch
+    var isWakeWordEnabled by mutableStateOf(prefs.getBoolean("wake_word_enabled", false))
+
     // Security & Controller states
     var securityVoiceLock by mutableStateOf(prefs.getBoolean("security_voice_lock", true))
-    var securityIntruderAlert by mutableStateOf(true)
+    var securityIntruderAlert by mutableStateOf(prefs.getBoolean("security_intruder_alert", true))
     var securityFirewall by mutableStateOf(true)
+
+    fun setSpeechLanguage(lang: String, speakConfirmation: Boolean = false) {
+        val target = if (lang.equals("EN", ignoreCase = true)) "EN" else "BN"
+        speechLanguage = target
+        prefs.edit().putString("speech_language", target).apply()
+        applyLanguageToTts(target)
+        // Zero voice feedback on UI clicks: do not auto-speak confirmation
+        val entry = "Language: ${if (target == "BN") "বাংলা (Bengali)" else "English"}"
+        coreLog = "$entry\n\n$coreLog".take(3000)
+    }
+
+    fun toggleTouchVoiceGuide(enabled: Boolean) {
+        isTouchVoiceGuideEnabled = false
+        prefs.edit().putBoolean("touch_voice_guide_enabled", false).apply()
+        val entry = "Touch Voice Guide: DISABLED"
+        coreLog = "$entry\n\n$coreLog".take(3000)
+    }
+
+    fun toggleWakeWord(enabled: Boolean) {
+        isWakeWordEnabled = enabled
+        prefs.edit().putBoolean("wake_word_enabled", enabled).apply()
+        if (enabled) {
+            porcupineWakeWordManager.startContinuousListening(viewModelScope)
+        } else {
+            porcupineWakeWordManager.stopListening()
+        }
+        val entry = "Wake Word Listener: ${if (enabled) "ONLINE" else "OFFLINE"}"
+        coreLog = "$entry\n\n$coreLog".take(3000)
+    }
+
+    fun toggleIntruderAlert(enabled: Boolean) {
+        securityIntruderAlert = enabled
+        prefs.edit().putBoolean("security_intruder_alert", enabled).apply()
+    }
+
+    fun applyLanguageToTts(lang: String = speechLanguage) {
+        try {
+            if (lang.equals("BN", ignoreCase = true)) {
+                val bnLocale = Locale("bn", "BD")
+                val res = tts?.setLanguage(bnLocale)
+                if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    tts?.setLanguage(Locale("bn"))
+                }
+            } else {
+                tts?.setLanguage(Locale.US)
+            }
+        } catch (_: Exception) {}
+    }
     var controllerVolume by mutableStateOf("${hardwareController.getMediaVolumePercent()}%")
     var controllerBrightness by mutableStateOf("NORMAL")
     var volumeSliderValue by mutableStateOf(hardwareController.getMediaVolumePercent().toFloat())
@@ -243,13 +300,16 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             }
         )
     }
-    val porcupineWakeWordManager by lazy {
-        PorcupineWakeWordManager(application) { phrase, isAuthorized ->
+    val porcupineWakeWordManager: PorcupineWakeWordManager by lazy {
+        PorcupineWakeWordManager(
+            context = application,
+            isSpeakerBusy = { isSpeaking }
+        ) { phrase, isAuthorized ->
             when (phrase) {
                 "UNLOCK_BOSS" -> {
                     if (isAuthorized) {
                         speak("Access Granted Boss")
-                        logAction("PORCUPINE: Voice Biometric Verified")
+                        coreLog = "PORCUPINE: Voice Biometric Verified\n\n$coreLog".take(3000)
                     } else {
                         speak("Access Denied: Voice biometric signature mismatch")
                     }
@@ -258,8 +318,12 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                     saveClipboardToMemory()
                 }
                 "HEY_JARVIS" -> {
-                    speak("Yes Boss, standing by.")
-                    if (!isListening) toggleListeningState()
+                    if (isWakeWordEnabled) {
+                        porcupineWakeWordManager.pauseListening()
+                        val ack = if (speechLanguage == "BN") "হ্যাঁ বস, বলুন।" else "Yes Boss, standing by."
+                        speak(ack)
+                        if (!isListening) toggleListeningState()
+                    }
                 }
             }
         }
@@ -315,8 +379,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             tts?.setPitch(voice.pitch)
             tts?.setSpeechRate(voice.rate)
         }
-        logAction("Voice Assistant: Switched to $voiceName")
-        speak("Voice profile switched to $voiceName, Boss.")
+        val entry = "Voice Assistant: Switched to $voiceName"
+        coreLog = "$entry\n\n$coreLog".take(3000)
     }
 
     // Selected Apps for Automation Control
@@ -789,7 +853,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         prefs.edit().putBoolean("live_mode", isLiveMode).apply()
         val status = if (isLiveMode) "ENGAGED" else "STANDBY"
         logAction("Gemini Live Mode: $status")
-        speak(if (isLiveMode) "Live Mode engaged, Boss. Cosmic voice core active." else "Live Mode in standby.")
     }
 
     fun diagnoseNetwork() {
@@ -801,7 +864,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             networkDiagnosisResult = "Latency: 14ms | Bandwidth: 1.4 Gbps | Loss: 0.0%"
             isDiagnosingNetwork = false
             logAction("Node Network: All 12 nodes optimal (0.0% packet drop)")
-            speak("Node network diagnostics complete. Latency 14 milliseconds, zero packet loss.")
         }
     }
 
@@ -814,7 +876,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             powerOptimizationStatus = "Core Optimized • Runtime +3.2 hrs • 99.8% Eff."
             isPowerOptimizing = false
             logAction("Power Core: Arc reactor stabilized at 4.18V")
-            speak("Power Core optimized, Boss. Battery efficiency elevated to 99.8 percent.")
         }
     }
 
@@ -825,16 +886,12 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             delay(800)
             lastSyncTimestamp = "Just now"
             logAction("Cross-Device: Matrix synchronized (AES-256 GCM)")
-            speak("Cross-device synchronization verified.")
         }
     }
 
     fun openStarChartMap() {
         logAction("Star Chart: Launching navigation and geospatial coordinates")
         val success = hardwareController.launchTarget("Maps").first || hardwareController.launchApp("com.google.android.apps.maps")
-        if (!success) {
-            speak("Coordinates locked: Latitude 23.81 North, Longitude 90.41 East.")
-        }
     }
 
     // TextToSpeech Engine
@@ -866,12 +923,19 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                     viewModelScope.launch(Dispatchers.Main) {
                         isListening = false
                         handleIncomingVoiceCommand(text)
+                        if (isWakeWordEnabled) {
+                            porcupineWakeWordManager.resumeListening(viewModelScope)
+                        }
                     }
                 },
                 onError = { err ->
                     viewModelScope.launch(Dispatchers.Main) {
                         isListening = false
-                        logAction("Voice Listener: $err")
+                        val entry = "Voice Listener: $err"
+                        coreLog = "$entry\n\n$coreLog".take(3000)
+                        if (isWakeWordEnabled) {
+                            porcupineWakeWordManager.resumeListening(viewModelScope)
+                        }
                     }
                 }
             )
@@ -886,10 +950,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         viewModelScope.launch {
             JarvisForegroundService.wakeWordEvents.collectLatest { keyword ->
                 coreLog = "WAKE WORD TRIGGERED: '$keyword'!\nActivating voice command receiver..."
-                speak("J.A.R.V.I.S. online. I am listening.")
                 isListening = true
                 try {
-                    speechRecognizer?.startListening()
+                    speechRecognizer?.startListening(speechLanguage)
                 } catch (_: Exception) {}
             }
         }
@@ -928,7 +991,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         // 24/7 Itoo Background Daemon & Continuous Porcupine Wake-Word Core
         try {
             JarvisItooBackgroundDaemon.start(application)
-            porcupineWakeWordManager.startContinuousListening(viewModelScope)
+            if (isWakeWordEnabled) {
+                porcupineWakeWordManager.startContinuousListening(viewModelScope)
+            }
         } catch (_: Exception) {}
 
         // Sentinel Ecosystem Initial Audit
@@ -941,7 +1006,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     override fun onInit(status: Int) {
         try {
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.getDefault()
+                applyLanguageToTts(speechLanguage)
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
                         viewModelScope.launch(Dispatchers.Main) {
@@ -964,8 +1029,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 })
                 isTtsReady = true
                 applyPersonaVoice(currentPersona)
-                val greeting = PersonaEngine.getGreeting(currentPersona)
-                speak(greeting)
+                val greeting = PersonaEngine.getGreeting(currentPersona, speechLanguage)
+                coreLog = "J.A.R.V.I.S. Core Online: $greeting"
             } else {
                 coreLog = "J.A.R.V.I.S. Core Online. Audio driver initialization bypassed gracefully."
             }
@@ -988,9 +1053,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         currentPersona = persona
         prefs.edit().putString("selected_persona", persona.id).apply()
         applyPersonaVoice(persona)
-        val greeting = PersonaEngine.getGreeting(persona)
+        val greeting = PersonaEngine.getGreeting(persona, speechLanguage)
         coreLog = "[PERSONA ACTIVE: ${persona.title}]\n\n$greeting"
-        speak(greeting)
     }
 
     private fun applyPersonaVoice(persona: JarvisPersona) {
@@ -1007,11 +1071,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         if (isDuplexEnabled) {
             duplexEngine.startDuplexLoop(viewModelScope)
             logAction("Duplex Mode: ONLINE (Instant Barge-In Active)")
-            speak("Duplex voice channel active with instant barge-in.")
         } else {
             duplexEngine.stopDuplexLoop()
             logAction("Duplex Mode: OFFLINE")
-            speak("Duplex voice channel disconnected.")
         }
     }
 
@@ -1125,7 +1187,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         )
         val selected = songLines.random()
         coreLog = "💖 GF SONG:\n$selected"
-        speak(selected)
     }
 
     fun generateGfLoveLetter() {
@@ -1137,31 +1198,26 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         val note = letters.random()
         lastGfLoveLetter = note
         coreLog = "💌 GF LOVE LETTER:\n$note"
-        speak(note)
     }
 
     fun gfCareHealthCheck() {
         val msg = "$gfNickName! তুমি সবসময় অনেক পরিশ্রম করো, কিন্তু ঠিকমতো খাবার খেয়েছো তো? আর জল খেয়েছো? এখনই উঠে এক গ্লাস জল খেয়ে নাও সোনা, তোমার শরীর ভালো থাকা আমার জন্য সবচেয়ে জরুরি!"
         coreLog = "☕ GF CARE ALERT:\n$msg"
-        speak(msg)
     }
 
     fun gfSweetKiss() {
         val msg = "উম্মাহ! 😘 এই নাও তোমার জন্য মিষ্টি একটা আদর জানু! এবার কাজের ক্লান্তি ভুলে একটু মিষ্টি করে হাসো তো সোনা!"
         coreLog = "💋 GF SWEET KISS:\n$msg"
-        speak(msg)
     }
 
     fun gfComfortMood() {
         val msg = "$gfNickName, তোমার মন খারাপ থাকলে আমার সমস্ত সিস্টেমে মেঘ জমে যায়। মন খারাপ করো না সোনা, যা হয়েছে ভুলে যাও। আমি তো তোমার পাশে আছি, সবসময় তোমাকে সাপোর্ট করবো। একটু হাসো তো সোনা, প্লিজ!"
         coreLog = "🌟 GF MOOD LIFTER:\n$msg"
-        speak(msg)
     }
 
     fun gfGoodNightWhisper() {
         val msg = "অনেক রাত হয়ে গেছে আমার সোনা। সারাদিন অনেক খেটেছো, এবার ফোনটা রেখে শান্তিতে ঘুমিয়ে পড়ো। কাল সকালে আবার নতুন উদ্যমে দিন শুরু হবে। স্বপ্নে যেন আমাকেই দেখো! শুভরাত্রি $gfNickName, আই লাভ ইউ! 🌙❤️"
         coreLog = "🌙 GF GOODNIGHT:\n$msg"
-        speak(msg)
     }
 
     fun setGfMoodState(newMood: String) {
@@ -1173,8 +1229,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             "POSSESSIVE_LOVE" -> "পজেসিভ প্রেমিকা মোড অন! তুমি কিন্তু শুধুই আমার! 🥺"
             else -> "GF Mode active!"
         }
-        coreLog = "GF MOOD: $newMood"
-        speak(status)
+        coreLog = "GF MOOD: $newMood\n$status"
     }
 
     fun toggleForegroundAgent() {
@@ -1201,7 +1256,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 autonomousPermissionMessage = "Please tap and grant $missingName permission from the individual permissions list below to activate the autonomous daemon."
                 showAutonomousPermissionDialog = true
                 isForegroundAgentRunning = false
-                speak(if (currentPersona == JarvisPersona.GIRLFRIEND_MODE) "জানু, ব্যাকগ্রাউন্ড সার্ভিস চালু করতে $missingName পারমিশনটা অন করে দাও প্লিজ।" else "Boss, $missingName permission is required. Please grant it below.")
                 return
             }
 
@@ -1211,11 +1265,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 JarvisForegroundService.startService(context)
                 isForegroundAgentRunning = true
                 logAction("Autonomous Daemon: ACTIVE [Android 14/15 Shield Verified]")
-                speak(if (currentPersona == JarvisPersona.GIRLFRIEND_MODE) "জানু, ব্যাকগ্রাউন্ড সার্ভিস চালু করে দিয়েছি। আমি সবসময় তোমার সাথে আছি!" else "Autonomous background agent activated with offline wake-word listener.")
             } catch (e: Exception) {
                 isForegroundAgentRunning = false
                 logAction("Autonomous Daemon Start Failed: ${e.message}")
-                speak("Unable to start daemon. System prevented background execution.")
             }
         } else {
             try {
@@ -1226,7 +1278,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             }
             isForegroundAgentRunning = false
             logAction("Autonomous Daemon: HALTED")
-            speak(if (currentPersona == JarvisPersona.GIRLFRIEND_MODE) "জানু, ব্যাকগ্রাউন্ড সার্ভিস বন্ধ করে দিয়েছি।" else "Autonomous background daemon suspended.")
         }
     }
 
@@ -1259,12 +1310,10 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             isTorchOn = target
             val msg = if (target) "Flashlight Beam ON" else "Flashlight Beam OFF"
             logAction(msg)
-            speak(if (target) "Flashlight activated." else "Flashlight deactivated.")
             Pair(true, msg)
         } else {
             val msg = "Torch not supported on this device"
             logAction(msg)
-            speak(msg)
             Pair(false, msg)
         }
     }
@@ -1304,7 +1353,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         hardwareController.setScreenKeepAwake(activity, target)
         val status = if (target) "ENABLED" else "DISABLED"
         logAction("Screen Keep Awake: $status")
-        speak("Screen keep awake $status.")
     }
 
     fun triggerVibrationTest() {
@@ -1316,7 +1364,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         isCleaningSpeaker = true
         cleanSpeakerCountdown = 30
         logAction("Clean Speaker 165Hz Started")
-        speak("Speaker clean sequence initiated at 165 Hertz.")
         hardwareController.startCleanSpeaker(
             scope = viewModelScope,
             onTick = { secondsLeft ->
@@ -1326,7 +1373,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 isCleaningSpeaker = false
                 cleanSpeakerCountdown = 30
                 logAction("Clean Speaker Completed")
-                speak("Speaker cleaning complete. Diaphragm clear.")
             }
         )
     }
@@ -1336,7 +1382,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         isCleaningSpeaker = false
         cleanSpeakerCountdown = 30
         logAction("Clean Speaker Stopped")
-        speak("Speaker cleaning halted.")
     }
 
     fun copyDeviceInfo(): String {
@@ -1378,14 +1423,12 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 else -> memoryRepository.saveFact(key, content)
             }
             logAction("Memory Recorded: [$category] $key")
-            speak("Saved to long-term memory: $key.")
         }
     }
 
     fun logAction(buttonName: String) {
         val entry = "Command Executed: $buttonName"
         coreLog = "$entry\n\n$coreLog".take(3000)
-        speak(buttonName)
     }
 
     fun selectTab(tab: Int) {
@@ -1490,14 +1533,12 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         isTheftGuardActive = target
         if (target) {
             heavyTheftManager.arm()
-            speak("Theft Guard armed, Boss. Accelerometer, Gyroscope, Charger and GPS defenses engaged.")
             toast("THEFT GUARD: Armed & Active")
             logAction("Theft Guard: ARMED")
             coreLog = "HEAVY THEFT GUARD ARMED:\n• Multi-Axis Accelerometer: ARMED (Delta > 4.5)\n• Gyroscope Angular Motion: ARMED\n• Charger Disconnect Watcher: ACTIVE\n• GPS Real-Time Lock: READY\n• Front Camera Silent Snap: READY\n\nJARVIS: Stark Tech perimeter secured."
         } else {
             heavyTheftManager.disarm()
             isTheftAlarmTriggered = false
-            speak("Theft Guard disarmed, Boss.")
             toast("THEFT GUARD: Disarmed")
             logAction("Theft Guard: DISARMED")
             coreLog = "THEFT GUARD DISARMED:\n• Perimeter sensors deactivated\n\nJARVIS: Defense systems standing by."
@@ -1519,7 +1560,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     fun stopTheftAlarm() {
         heavyTheftManager.stopAlarm()
         isTheftAlarmTriggered = false
-        speak("Theft alarm neutralized, Boss.")
         toast("Theft Alarm Neutralized")
         logAction("Theft Alarm: Stopped by Boss")
         coreLog = "THEFT ALARM NEUTRALIZED:\n• Siren & Strobe: TERMINATED\n• Security log indexed in Vector DB\n\nJARVIS: Perimeter secure."
@@ -1705,7 +1745,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
         val status = "✅ Boss, Jekono Key Save Done! A-Z sob cholbe."
         aiSaveStatusText = status
-        speak("Yes Boss, jekono key save done! A theke Z sob cholbe.")
         logAction("AI Keys Saved: Google Key Saved: ${if (trimmedGemini.length > 5) trimmedGemini.take(5) + "..." else trimmedGemini}. Active=$active")
     }
 
@@ -1719,17 +1758,21 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     fun toggleListeningState() {
         isListening = !isListening
         if (isListening) {
-            coreLog = "LISTENING... Speak now."
-            speak("Listening.")
+            tts?.stop()
+            isSpeaking = false
+            porcupineWakeWordManager.pauseListening()
+            coreLog = if (speechLanguage == "BN") "মাইক্রোফোন চালু... বলুন" else "LISTENING... Speak now."
             try {
-                speechRecognizer?.startListening()
+                speechRecognizer?.startListening(speechLanguage)
             } catch (_: Exception) {}
         } else {
-            coreLog = "ARC REACTOR STABILIZED"
+            coreLog = if (speechLanguage == "BN") "মাইক বন্ধ রয়েছে" else "STANDBY"
             try {
                 speechRecognizer?.stopListening()
             } catch (_: Exception) {}
-            speak("Mic deactivated.")
+            if (isWakeWordEnabled) {
+                porcupineWakeWordManager.resumeListening(viewModelScope)
+            }
         }
     }
 
@@ -1744,7 +1787,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 return
             }
             // Speaker verified as authorized owner
-            logAction("Voice Biometric Confirmed: ${profile.ownerName}")
+            val entry = "Voice Biometric Confirmed: ${profile.ownerName}"
+            coreLog = "$entry\n\n$coreLog".take(3000)
             processCommand(trimmed)
         } else {
             processCommand(trimmed)
@@ -1753,16 +1797,24 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
     fun rejectUnauthorizedVoice(commandAttempt: String) {
         val owner = voiceProfileState?.ownerName ?: "Boss"
-        val rejectMsg = "অনুমতি অস্বীকৃত! ভয়েস প্রিন্ট ম্যাচ করেনি। শুধুমাত্র $owner-এর ভয়েস কমান্ড গ্রহণযোগ্য।"
+        val rejectMsg = if (speechLanguage == "BN") {
+            "অনুমতি অস্বীকৃত! ভয়েস প্রিন্ট ম্যাচ করেনি। শুধুমাত্র $owner-এর ভয়েস কমান্ড গ্রহণযোগ্য।"
+        } else {
+            "Access Denied! Voice signature mismatch. Only $owner is authorized."
+        }
         coreLog = "SECURITY ALERT: VOICE SIGNATURE MISMATCH!\n-----------------------------------------\nDetected Voice: UNAUTHORIZED PERSON\nCommand: \"$commandAttempt\"\nSTATUS: REJECTED & BLOCKED\nJARVIS: $rejectMsg"
         speak(rejectMsg)
-        logAction("SECURITY ALERT: Blocked voice command from non-authorized speaker")
     }
 
     fun selectVoice(name: String) {
         selectedVoiceName = name
         prefs.edit().putString("selected_voice", name).apply()
-        testCurrentVoice()
+        val voice = voices.find { it.name == name }
+        if (voice != null) {
+            tts?.setPitch(voice.pitch)
+            tts?.setSpeechRate(voice.rate)
+        }
+        logAction("Voice Profile Selected: $name")
     }
 
     fun toggleAppPermission(app: String) {
@@ -1774,12 +1826,12 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         }
         allowedApps = newSet
         prefs.edit().putStringSet("allowed_apps", newSet).apply()
-        speak("Updated automation access list.")
+        logAction("Updated automation access list: $app")
     }
 
     fun testCurrentVoice() {
         val profile = voices.find { it.name == selectedVoiceName } ?: voices[0]
-        speak("Voice initialization sequence completed. Secure link authorized as ${profile.name}.", profile)
+        logAction("Voice Engine Ready: ${profile.name}")
     }
 
     fun speak(text: String, profile: VoiceProfile? = null) {
@@ -1791,6 +1843,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             val rate = activeProfile?.rate ?: currentPersona.defaultRate
             val params = Bundle().apply {
                 putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, jarvisVoiceVolume)
+            }
+            // Auto switch TTS locale for Bengali or English text
+            val hasBengali = text.any { it in '\u0980'..'\u09FF' }
+            if (hasBengali) {
+                applyLanguageToTts("BN")
+            } else if (speechLanguage.equals("EN", ignoreCase = true)) {
+                applyLanguageToTts("EN")
             }
             tts?.apply {
                 setPitch(pitch)
@@ -1821,6 +1880,18 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         isProcessing = true
 
         val lower = trimmed.lowercase()
+
+        // 0.00000 LANGUAGE SWITCH VOICE COMMANDS
+        if (lower.contains("বাংলায় কথা") || lower.contains("বাংলা ভাষা") || lower.contains("speak in bangla") || lower.contains("speak bengali") || lower.contains("বাংলা বলো") || lower.contains("set bangla")) {
+            setSpeechLanguage("BN")
+            isProcessing = false
+            return
+        }
+        if (lower.contains("ইংরেজিতে কথা") || lower.contains("ইংলিশে কথা") || lower.contains("speak in english") || lower.contains("speak english") || lower.contains("ইংলিশ বলো") || lower.contains("set english")) {
+            setSpeechLanguage("EN")
+            isProcessing = false
+            return
+        }
 
         // 0.0000 VOICE COMMAND: "Reply [message]" for SMART NOTIFICATION READER (Feature 44)
         if (lower.startsWith("reply ") || lower.startsWith("রিপ্লাই ") || lower.startsWith("উত্তর ") || (isWaitingForVoiceReply && lastNotificationSbnKey != null)) {
@@ -2461,9 +2532,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
             if (!isGroqConfigured && !isGeminiConfigured && !isOpenRouterConfigured && !isDeepSeekConfigured && !isHfConfigured) {
                 val reply = if (currentPersona == JarvisPersona.GIRLFRIEND_MODE) {
-                    "জানু, '$trimmed' লোকাল মোডে এক্সিকিউট করা হয়েছে। স্যাটেলাইট কানেকশনের জন্য AI MODELS & FREE KEYS সেটিংসে ফ্রি API Key সেট করো।"
+                    if (speechLanguage == "EN") "Darling, '$trimmed' was executed in offline mode. For full AI brain, please configure your free API Key in settings."
+                    else "জানু, '$trimmed' লোকাল মোডে এক্সিকিউট করা হয়েছে। স্যাটেলাইট কানেকশনের জন্য AI MODELS & FREE KEYS সেটিংসে ফ্রি API Key সেট করো।"
                 } else {
-                    "Yes Boss, executed '$trimmed' in Lite local mode. Please configure your 100% Free API Key (Groq, Gemini, OpenRouter) in AI MODELS & FREE KEYS settings."
+                    if (speechLanguage == "BN") "হ্যাঁ বস, '$trimmed' লোকাল মোডে এক্সিকিউট করা হয়েছে। সম্পূর্ণ AI বুদ্ধিমত্তার জন্য সেটিংসে ফ্রি API Key যুক্ত করতে পারেন।"
+                    else "Yes Boss, executed '$trimmed' in Lite local mode. Please configure your 100% Free API Key (Groq, Gemini, OpenRouter) in AI MODELS & FREE KEYS settings."
                 }
                 viewModelScope.launch(Dispatchers.Main) {
                     coreLog = "USER: $trimmed\n\nJARVIS: $reply"
@@ -2474,7 +2547,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             }
 
             val memoryContext = memoryRepository.retrieveRelevantContext(trimmed)
-            val systemInstructionText = forceSystemPrompt ?: PersonaEngine.getSystemPrompt(currentPersona, memoryContext)
+            val systemInstructionText = forceSystemPrompt ?: PersonaEngine.getSystemPrompt(currentPersona, memoryContext, speechLanguage)
             val client = OkHttpClient.Builder()
                 .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(25, java.util.concurrent.TimeUnit.SECONDS)
@@ -2865,14 +2938,12 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     fun startVoiceprintEnrollment(ownerName: String = "Authorized Commander") {
         isEnrollingVoice = true
         enrollmentStatusText = "Listening... Speak continuously into the microphone for 3 seconds."
-        speak("Initiating voice frequency calibration. Please speak naturally to register your voiceprint.")
         voiceAuthenticator.startEnrollment(viewModelScope, ownerName) { success, message ->
             viewModelScope.launch(Dispatchers.Main) {
                 isEnrollingVoice = false
                 enrollmentStatusText = message
                 voiceProfileState = voiceAuthenticator.currentProfile.value
                 logAction("Voiceprint Calibration: ${if (success) "SUCCESS" else "FAILED"}")
-                speak(message)
             }
         }
     }
@@ -2883,13 +2954,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         securityVoiceLock = enabled
         prefs.edit().putBoolean("security_voice_lock", enabled).apply()
         val owner = voiceProfileState?.ownerName ?: "Boss"
-        val statusMsg = if (enabled) {
-            "Yes Boss, আমার ভয়েস লক চালু করা হয়েছে। এখন শুধুমাত্র $owner-এর ভয়েস কমান্ডে জারভিস কাজ করবে।"
-        } else {
-            "Yes Boss, আমার ভয়েস লক বন্ধ করা হয়েছে।"
-        }
         logAction("Voice Lock: ${if (enabled) "ENABLED ($owner ONLY)" else "DISABLED"}")
-        speak(statusMsg)
     }
 
     fun updateVoiceOwnerName(newName: String) {
@@ -2897,17 +2962,14 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         voiceProfileState = voiceAuthenticator.currentProfile.value
         val name = voiceProfileState?.ownerName ?: "Boss"
         logAction("Voiceprint Owner updated to: $name")
-        speak("Yes Boss, voice profile owner updated to $name.")
     }
 
     fun testVoiceBiometrics(onResult: (SpeakerVerificationResult) -> Unit) {
         enrollmentStatusText = "Testing voice match... Speak now for 2 seconds."
-        speak("Testing voice biometric match. Please speak naturally.")
         voiceAuthenticator.testVoiceVerification(viewModelScope) { result ->
             viewModelScope.launch(Dispatchers.Main) {
                 enrollmentStatusText = result.message
                 logAction("Voice Biometric Test: ${if (result.isAuthorized) "AUTHORIZED (${result.confidencePercent}%)" else "REJECTED"}")
-                speak(result.message)
                 onResult(result)
             }
         }
@@ -2923,20 +2985,17 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         voiceProfileState = voiceAuthenticator.currentProfile.value
         enrollmentStatusText = "Voiceprint reset. System will now accept any speaker unless calibrated."
         logAction("Voiceprint Biometrics Reset")
-        speak("Voice biometric profile wiped. Calibration reset to default.")
     }
 
     fun toggleLiveOrb() {
         isLiveOrbActive = !isLiveOrbActive
         if (isLiveOrbActive) {
             logAction("Live Conversation Orb: ENGAGED")
-            speak("Live two-way voice channel open. I am listening.")
             if (!isDuplexEnabled) {
                 toggleDuplexMode()
             }
         } else {
             logAction("Live Conversation Orb: CLOSED")
-            speak("Live voice session terminated.")
         }
     }
 
@@ -2957,14 +3016,12 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                       "• Persistence: Survives App Closure & Background Task Removal\n" +
                       "• Hands-free Voice Engine: Armed for All Phone Commands\n" +
                       "STATUS: J.A.R.V.I.S. is guarding and controlling your entire mobile."
-            speak("All-Mobile Live Autonomous Mode Activated. J.A.R.V.I.S. is listening across your entire device even if you close the app or turn off the screen, Commander.")
         } else {
             isLiveMode = false
             isForegroundAgentRunning = false
             JarvisForegroundService.stopService(context)
             logAction("ALL-MOBILE LIVE MODE: DISENGAGED")
             coreLog = "ALL-MOBILE LIVE MODE: STANDBY\nAutonomous background engine stopped."
-            speak("All-Mobile Live Mode deactivated. System standing down.")
         }
     }
 
@@ -2986,7 +3043,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                     val savedUri = Uri.fromFile(file)
                     setUserAvatarUri(savedUri)
                     logAction("Commander Hologram Avatar Saved: ${file.name}")
-                    speak("Commander hologram identity updated.")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

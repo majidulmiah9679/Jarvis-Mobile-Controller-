@@ -374,6 +374,144 @@ fun JarvisSettingsScreen(viewModel: JarvisViewModel) {
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // VOICE LANGUAGE SELECTION (বাংলা ও English কথা বলার সেটিংস)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.2.dp, cyanAccent.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = cardBgColor)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Language,
+                                    contentDescription = null,
+                                    tint = StarkGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "VOICE LANGUAGE // কথা বলার ভাষা",
+                                        color = StarkGold,
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "যেটি নির্বাচন করবেন জার্ভিস সেই ভাষায় কথা বলবে ও বুঝবে",
+                                        color = textColorSecondary,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            val isBn = viewModel.speechLanguage.equals("BN", ignoreCase = true)
+                            val isEn = viewModel.speechLanguage.equals("EN", ignoreCase = true)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Option 1: বাংলা (BENGALI)
+                                OutlinedButton(
+                                    onClick = { viewModel.setSpeechLanguage("BN") },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(56.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (isBn) cyanAccent.copy(alpha = 0.16f) else Color.Transparent,
+                                        contentColor = if (isBn) cyanAccent else textColorPrimary
+                                    ),
+                                    border = BorderStroke(
+                                        width = if (isBn) 2.dp else 1.dp,
+                                        color = if (isBn) cyanAccent else dividerColor
+                                    )
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = "🇧🇩 বাংলা (Bengali)",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                        Text(
+                                            text = if (isBn) "✓ সক্রিয় (Active)" else "বাংলা ভাষা সেট করুন",
+                                            fontSize = 10.sp,
+                                            color = if (isBn) cyanAccent else textColorSecondary
+                                        )
+                                    }
+                                }
+
+                                // Option 2: ENGLISH (ইউএস)
+                                OutlinedButton(
+                                    onClick = { viewModel.setSpeechLanguage("EN") },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(56.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (isEn) cyanAccent.copy(alpha = 0.16f) else Color.Transparent,
+                                        contentColor = if (isEn) cyanAccent else textColorPrimary
+                                    ),
+                                    border = BorderStroke(
+                                        width = if (isEn) 2.dp else 1.dp,
+                                        color = if (isEn) cyanAccent else dividerColor
+                                    )
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = "🇺🇸 English (US)",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                        Text(
+                                            text = if (isEn) "✓ Active (সক্রিয়)" else "Set English",
+                                            fontSize = 10.sp,
+                                            color = if (isEn) cyanAccent else textColorSecondary
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Test Voice Button
+                            Button(
+                                onClick = { viewModel.testCurrentVoice() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(40.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = cyanAccent.copy(alpha = 0.15f),
+                                    contentColor = cyanAccent
+                                ),
+                                border = BorderStroke(1.dp, cyanAccent.copy(alpha = 0.4f))
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isBn) "ভয়েস টেস্ট শুনুন (Test Voice)" else "Test Current Voice",
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // AMAR VOICE BIOMETRIC LOCK (MY VOICE)
@@ -618,20 +756,44 @@ fun JarvisSettingsScreen(viewModel: JarvisViewModel) {
                             )
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            // Voice Lock is configured in Account & Profile (Amar Voice Biometrics) to prevent duplicate controls
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = cyanAccent.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, cyanAccent.copy(alpha = 0.25f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { activeFolder = SettingsFolder.ACCOUNT_PROFILE }
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Security Voice Lock", color = textColorPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                                    Text("Requires Majidul voice biometric to authenticate", color = textColorSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Voice Lock Biometrics",
+                                            color = StarkGold,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                        Text(
+                                            text = if (viewModel.securityVoiceLock) "Status: ACTIVE (Managed in Account & Profile)" else "Status: OFF (Managed in Account & Profile)",
+                                            color = textColorSecondary,
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowForward,
+                                        contentDescription = "Go to Voice Lock",
+                                        tint = cyanAccent,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
-                                Switch(
-                                    checked = viewModel.securityVoiceLock,
-                                    onCheckedChange = { viewModel.securityVoiceLock = it },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = cyanAccent, checkedTrackColor = cyanAccent.copy(alpha = 0.4f))
-                                )
                             }
 
                             Divider(color = dividerColor, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
@@ -647,7 +809,7 @@ fun JarvisSettingsScreen(viewModel: JarvisViewModel) {
                                 }
                                 Switch(
                                     checked = viewModel.securityIntruderAlert,
-                                    onCheckedChange = { viewModel.securityIntruderAlert = it },
+                                    onCheckedChange = { viewModel.toggleIntruderAlert(it) },
                                     colors = SwitchDefaults.colors(checkedThumbColor = cyanAccent, checkedTrackColor = cyanAccent.copy(alpha = 0.4f))
                                 )
                             }
@@ -820,7 +982,7 @@ fun JarvisSettingsScreen(viewModel: JarvisViewModel) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Torch & Beam controls
+                    // TOUCH & BUTTON TALKING GUIDE (User Request: Stop talking guide on button taps)
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -836,15 +998,26 @@ fun JarvisSettingsScreen(viewModel: JarvisViewModel) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Torch Max Beam", color = textColorPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                                Text("Hardware tactical illuminator status", color = textColorSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                                Text(
+                                    text = "Touch & Button Voice Guide",
+                                    color = textColorPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Text(
+                                    text = "বোতাম বা সেটিংস চাপলে কথা বলে গাইড করবে কিনা (ডিফল্ট: বন্ধ)",
+                                    color = textColorSecondary,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
                             }
                             Switch(
-                                checked = viewModel.isTorchOn,
-                                onCheckedChange = { viewModel.toggleTorchOnly() },
+                                checked = viewModel.isTouchVoiceGuideEnabled,
+                                onCheckedChange = { viewModel.toggleTouchVoiceGuide(it) },
                                 colors = SwitchDefaults.colors(
-                                    checkedThumbColor = StarkGold,
-                                    checkedTrackColor = StarkGold.copy(alpha = 0.4f)
+                                    checkedThumbColor = cyanAccent,
+                                    checkedTrackColor = cyanAccent.copy(alpha = 0.4f)
                                 )
                             )
                         }

@@ -36,7 +36,7 @@ class JarvisSpeechRecognizer(
         return SpeechRecognizer.isRecognitionAvailable(context)
     }
 
-    fun startListening() {
+    fun startListening(targetLanguage: String? = null) {
         mainHandler.post {
             try {
                 if (speechRecognizer == null) {
@@ -44,9 +44,17 @@ class JarvisSpeechRecognizer(
                     speechRecognizer?.setRecognitionListener(createListener())
                 }
 
+                val targetTag = when (targetLanguage?.uppercase()) {
+                    "EN", "ENGLISH" -> "en-US"
+                    "BN", "BANGLA", "BENGALI" -> "bn-BD"
+                    else -> "bn-BD"
+                }
+
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, targetTag)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, targetTag)
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("bn-BD", "en-US"))
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                     putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
