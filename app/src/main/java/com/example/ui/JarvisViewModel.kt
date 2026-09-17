@@ -199,6 +199,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     var hfKey by mutableStateOf(prefs.getString("JARVIS_HF_KEY", "") ?: "")
     var activeBrain by mutableStateOf(prefs.getString("JARVIS_ACTIVE_BRAIN", "GEMINI") ?: "GEMINI")
     var aiSaveStatusText by mutableStateOf("")
+    var isAiInitialized by mutableStateOf(false)
+    var aiStatusText by mutableStateOf("JARVIS Online. Initializing AI...")
 
     // Live Gemini Verification Status (Green Tick / Red Tick)
     var geminiValidationStatus by mutableStateOf(KeyValidationStatus.VALID)
@@ -215,12 +217,26 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     fun getEngineKey(engineId: String): String {
+        val aiKeysPrefs = try {
+            getApplication<Application>().getSharedPreferences("AiKeys", Context.MODE_PRIVATE)
+        } catch (_: Exception) { null }
+
         return when (engineId.uppercase()) {
-            "GEMINI" -> getActiveGeminiKey()
-            "GROQ" -> groqKey
-            "OPENROUTER" -> openrouterKey
-            "DEEPSEEK" -> deepseekKey
-            "HUGGINGFACE" -> hfKey
+            "GEMINI" -> getActiveGeminiKey().ifBlank {
+                aiKeysPrefs?.getString("GEMINI_KEY", "")?.trim().orEmpty()
+            }
+            "GROQ" -> groqKey.ifBlank {
+                aiKeysPrefs?.getString("GROQ_KEY", "")?.trim().orEmpty()
+            }
+            "OPENROUTER" -> openrouterKey.ifBlank {
+                aiKeysPrefs?.getString("OPENROUTER_KEY", "")?.trim().orEmpty()
+            }
+            "DEEPSEEK" -> deepseekKey.ifBlank {
+                aiKeysPrefs?.getString("DEEPSEEK_KEY", "")?.trim().orEmpty()
+            }
+            "HUGGINGFACE" -> hfKey.ifBlank {
+                aiKeysPrefs?.getString("HUGGINGFACE_KEY", "")?.trim().orEmpty()
+            }
             else -> ""
         }
     }
@@ -274,6 +290,20 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         }
         activeBrain = eId
         editor.putString("JARVIS_ACTIVE_BRAIN", eId).apply()
+
+        // Sync with universal AiKeys SharedPreferences
+        try {
+            val aiKeys = getApplication<Application>().getSharedPreferences("AiKeys", Context.MODE_PRIVATE).edit()
+            when (eId) {
+                "GEMINI" -> aiKeys.putString("GEMINI_KEY", cleanKey)
+                "GROQ" -> aiKeys.putString("GROQ_KEY", cleanKey)
+                "OPENROUTER" -> aiKeys.putString("OPENROUTER_KEY", cleanKey)
+                "DEEPSEEK" -> aiKeys.putString("DEEPSEEK_KEY", cleanKey)
+                "HUGGINGFACE" -> aiKeys.putString("HUGGINGFACE_KEY", cleanKey)
+            }
+            aiKeys.apply()
+        } catch (_: Exception) {}
+
         aiSaveStatusText = "$eId Engine Activated & Saved! 🟢"
         logAction("AI Engine Configured & Activated: $eId [Key: ${if (cleanKey.isNotBlank()) "Set" else "Empty"}]")
     }
@@ -1539,10 +1569,26 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         // Real-Time Mobile Data / Wi-Fi Network auto-connect listener
         initNetworkMonitor()
 
+        // Sync keys between "AiKeys" SharedPreferences and "jarvis_lite_prefs"
+        syncKeysWithAiKeysPrefs()
+
         // Background auto-verification of Gemini API Key (Green/Red tick initialization)
         val savedGeminiKey = getActiveGeminiKey()
         if (savedGeminiKey.isNotBlank()) {
             verifyGeminiApiKey(savedGeminiKey)
+        }
+
+        // Auto-start AI engine upon app open if any keys exist
+        if (AiClientManager.hasAnyApiKey(application)) {
+            startAiEngine()
+        } else {
+            // First time open or no key saved -> prompt user and route to Settings
+            viewModelScope.launch(Dispatchers.Main) {
+                delay(600)
+                Toast.makeText(application, "Set your API key once to start!", Toast.LENGTH_LONG).show()
+                currentTab = 3 // Settings tab
+                coreLog = "⚠️ Set your API key once to start!\nGo to Settings to enter your free Google Gemini, Groq, or OpenRouter API key."
+            }
         }
     }
 
@@ -1614,22 +1660,15 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
     /**
      * Automatic instant link upon Mobile Data or Internet activation:
-     * 1. Re-links & validates Google Gemini AI Brain immediately.
+     * 1. Re-links & validates all configured AI engines immediately.
      * 2. Engages wake-word & continuous voice listener so J.A.R.V.I.S. is ready to hear and execute commands.
      * 3. Announces voice-ready state to user.
      */
     fun onNetworkConnected(type: String) {
-        val activeKey = getActiveGeminiKey()
-        coreLog = "🛰️ $type DETECTED! Establishing instant Google Gemini satellite link & voice engine...\n\n$coreLog".take(3000)
+        coreLog = "🛰️ $type DETECTED! Synchronizing all AI Brains and satellite links...\n\n$coreLog".take(3000)
 
-        // 1. Instant verify & connect Google Gemini
-        if (activeKey.isNotBlank()) {
-            verifyGeminiApiKey(activeKey) { success, msg ->
-                if (success) {
-                    coreLog = "✅ SATELLITE UPLINK 100%: Google Gemini connected via $type. Voice recognition online and active!\n\n$coreLog".take(3000)
-                }
-            }
-        }
+        // 1. Instant verify & connect active AI engine
+        startAiEngine()
 
         // 2. Activate Voice Listening immediately if wake-word or live mode is ready
         try {
@@ -1642,6 +1681,95 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         try {
             JarvisItooBackgroundDaemon.start(getApplication())
         } catch (_: Exception) {}
+    }
+
+    fun syncKeysWithAiKeysPrefs() {
+        try {
+            val aiKeysPrefs = getApplication<Application>().getSharedPreferences("AiKeys", Context.MODE_PRIVATE)
+            val e = aiKeysPrefs.edit()
+            val pEdit = prefs.edit()
+
+            val groq = aiKeysPrefs.getString("GROQ_KEY", "")?.trim().orEmpty()
+                .ifEmpty { prefs.getString("JARVIS_GROQ_KEY", "")?.trim().orEmpty() }
+            if (groq.isNotEmpty()) {
+                groqKey = groq
+                e.putString("GROQ_KEY", groq)
+                pEdit.putString("JARVIS_GROQ_KEY", groq)
+            }
+
+            val or = aiKeysPrefs.getString("OPENROUTER_KEY", "")?.trim().orEmpty()
+                .ifEmpty { prefs.getString("JARVIS_OPENROUTER_KEY", "")?.trim().orEmpty() }
+            if (or.isNotEmpty()) {
+                openrouterKey = or
+                e.putString("OPENROUTER_KEY", or)
+                pEdit.putString("JARVIS_OPENROUTER_KEY", or)
+            }
+
+            val gem = aiKeysPrefs.getString("GEMINI_KEY", "")?.trim().orEmpty()
+                .ifEmpty { prefs.getString("JARVIS_GEMINI_KEY", "")?.trim().orEmpty() }
+                .ifEmpty { prefs.getString("gemini_key", "")?.trim().orEmpty() }
+                .ifEmpty { prefs.getString("JARVIS_GOOGLE_MASTER_KEY", "")?.trim().orEmpty() }
+                .ifEmpty { runCatching<String> { com.example.BuildConfig.GEMINI_API_KEY }.getOrDefault("") }
+            if (gem.isNotEmpty() && gem != "MY_GEMINI_API_KEY") {
+                geminiKey = gem
+                apiKey = gem
+                e.putString("GEMINI_KEY", gem)
+                pEdit.putString("JARVIS_GEMINI_KEY", gem)
+                pEdit.putString("gemini_key", gem)
+                pEdit.putString("JARVIS_GOOGLE_MASTER_KEY", gem)
+            }
+
+            val ds = aiKeysPrefs.getString("DEEPSEEK_KEY", "")?.trim().orEmpty()
+                .ifEmpty { prefs.getString("JARVIS_DEEPSEEK_KEY", "")?.trim().orEmpty() }
+            if (ds.isNotEmpty()) {
+                deepseekKey = ds
+                e.putString("DEEPSEEK_KEY", ds)
+                pEdit.putString("JARVIS_DEEPSEEK_KEY", ds)
+            }
+
+            val hf = aiKeysPrefs.getString("HUGGINGFACE_KEY", "")?.trim().orEmpty()
+                .ifEmpty { prefs.getString("JARVIS_HF_KEY", "")?.trim().orEmpty() }
+            if (hf.isNotEmpty()) {
+                hfKey = hf
+                e.putString("HUGGINGFACE_KEY", hf)
+                pEdit.putString("JARVIS_HF_KEY", hf)
+            }
+
+            e.apply()
+            pEdit.apply()
+        } catch (_: Exception) {}
+    }
+
+    fun startAiEngine(onSuccess: ((String) -> Unit)? = null, onError: ((String) -> Unit)? = null) {
+        aiStatusText = "JARVIS Online. Initializing AI..."
+        coreLog = "🛰️ JARVIS Online. Initializing AI & Connecting Satellite Uplink ($activeBrain)...\n\n$coreLog".take(3000)
+
+        val prompt = if (speechLanguage == "BN") {
+            "হ্যালো জার্ভিস, সিস্টেম কি সম্পূর্ণ সক্রিয় ও প্রস্তুত?"
+        } else {
+            "Hello JARVIS, are all systems operational?"
+        }
+
+        AiClientManager.askAiAuto(
+            context = getApplication(),
+            prompt = prompt,
+            onSuccess = { reply ->
+                isAiInitialized = true
+                aiStatusText = reply
+                val clean = cleanTextForSpeech(reply)
+                coreLog = "JARVIS: $reply\n\n🟢 All AI engines verified & linked online via $networkType.\n\n$coreLog".take(3000)
+                speak(clean)
+                logAction("AI Handshake Complete: $activeBrain")
+                onSuccess?.invoke(reply)
+            },
+            onError = { err ->
+                isAiInitialized = false
+                aiStatusText = "Connection Error: $err"
+                coreLog = "⚠️ AI Connection Error: $err\nCheck internet or API keys in Settings.\n\n$coreLog".take(3000)
+                logAction("AI Handshake Error: $err")
+                onError?.invoke(err)
+            }
+        )
     }
 
     override fun onInit(status: Int) {
@@ -2381,6 +2509,17 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         if (trimmedHf.isNotEmpty()) hfKey = trimmedHf
         activeBrain = active
 
+        // Sync with universal AiKeys SharedPreferences
+        try {
+            val aiKeys = getApplication<Application>().getSharedPreferences("AiKeys", Context.MODE_PRIVATE).edit()
+            if (trimmedGroq.isNotEmpty()) aiKeys.putString("GROQ_KEY", trimmedGroq)
+            if (trimmedOpenRouter.isNotEmpty()) aiKeys.putString("OPENROUTER_KEY", trimmedOpenRouter)
+            if (trimmedGemini.isNotEmpty()) aiKeys.putString("GEMINI_KEY", trimmedGemini)
+            if (trimmedDeepSeek.isNotEmpty()) aiKeys.putString("DEEPSEEK_KEY", trimmedDeepSeek)
+            if (trimmedHf.isNotEmpty()) aiKeys.putString("HUGGINGFACE_KEY", trimmedHf)
+            aiKeys.apply()
+        } catch (_: Exception) {}
+
         val status = "✅ Boss, Google Gemini & AI Keys Saved! Testing satellite connection..."
         aiSaveStatusText = status
         logAction("AI Keys Saved: Google Key Saved: ${if (trimmedGemini.length > 5) trimmedGemini.take(5) + "..." else trimmedGemini}. Active=$active")
@@ -2482,10 +2621,25 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         logAction("Voice Engine Test: ${profile.name}")
     }
 
+    fun cleanTextForSpeech(raw: String): String {
+        return raw
+            .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+            .replace(Regex("\\*(.*?)\\*"), "$1")
+            .replace(Regex("`{1,3}(.*?)`{1,3}"), "$1")
+            .replace(Regex("#{1,6}\\s*"), "")
+            .replace(Regex("[-*•]\\s+"), "")
+            .replace(Regex("\\[(.*?)\\]\\(.*?\\)"), "$1")
+            .replace(Regex("[_~>|]"), " ")
+            .replace(Regex("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
     fun speak(text: String, profile: VoiceProfile? = null) {
-        if (text.isBlank()) return
+        val cleanText = cleanTextForSpeech(text)
+        if (cleanText.isBlank()) return
         if (!isTtsReady || tts == null) {
-            pendingSpeechText = text
+            pendingSpeechText = cleanText
             return
         }
         try {
@@ -2497,7 +2651,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, jarvisVoiceVolume.coerceIn(0.2f, 1.0f))
             }
             // Auto switch TTS locale for Bengali or English text
-            val hasBengali = text.any { it in '\u0980'..'\u09FF' }
+            val hasBengali = cleanText.any { it in '\u0980'..'\u09FF' }
             if (hasBengali) {
                 applyLanguageToTts("BN")
             } else {
@@ -2507,16 +2661,16 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             tts?.setSpeechRate(rate)
 
             val utteranceId = "jarvis_tts_${System.currentTimeMillis()}"
-            val res = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
+            val res = tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
             if (res == TextToSpeech.ERROR) {
                 // If speaking with current locale/params failed, fallback to US locale cleanly
                 tts?.setLanguage(Locale.US)
-                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId + "_fallback")
+                tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId + "_fallback")
             }
         } catch (e: Exception) {
             try {
                 tts?.setLanguage(Locale.US)
-                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis_emergency_voice")
+                tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, "jarvis_emergency_voice")
             } catch (_: Exception) {}
         }
     }
