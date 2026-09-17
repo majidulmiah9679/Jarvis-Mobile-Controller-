@@ -1,0 +1,103 @@
+package com.example.ui
+
+data class AiEngineInfo(
+    val id: String,
+    val name: String,
+    val brandTag: String,
+    val description: String,
+    val officialKeyUrl: String,
+    val defaultModel: String,
+    val models: List<AiEngineModelInfo>,
+    val placeholderKey: String
+)
+
+data class AiEngineModelInfo(
+    val id: String,
+    val displayName: String,
+    val description: String,
+    val tag: String,
+    val speedBadge: String
+)
+
+object JarvisAiEnginesRegistry {
+
+    val ENGINES = listOf(
+        AiEngineInfo(
+            id = "GEMINI",
+            name = "Google Gemini",
+            brandTag = "OFFICIAL GOOGLE ⭐",
+            description = "গুগলের ফ্ল্যাগশিপ মাল্টিমোডাল এআই। সম্পূর্ণ ফ্রিতে আনলিমিটেড কোটা ও দ্রুততম রেসপন্স।",
+            officialKeyUrl = "https://aistudio.google.com/app/apikey",
+            defaultModel = "gemini-2.5-flash",
+            placeholderKey = "AIzaSy...",
+            models = listOf(
+                AiEngineModelInfo("gemini-2.5-flash", "Gemini 2.5 Flash", "Google-এর লেটেস্ট ফ্ল্যাগশিপ ফ্রি মডেল (সুপার-ফাস্ট ও স্মার্ট)", "RECOMMENDED ⭐", "Ultra-Fast"),
+                AiEngineModelInfo("gemini-2.0-flash", "Gemini 2.0 Flash", "হাই স্পিড জেনারেশন, রিয়েল-টাইম বাংলা ও ইংরেজি রেসপন্স", "HIGH SPEED ⚡", "Fast"),
+                AiEngineModelInfo("gemini-1.5-flash", "Gemini 1.5 Flash", "লাইটওয়েট, স্থিতিশীল ও ১ মিলিয়ন টোকেন মেমোরি", "FREE TIER 🟢", "Lightweight"),
+                AiEngineModelInfo("gemini-1.5-pro", "Gemini 1.5 Pro", "ডিপ রিজনিং, জটিল কোডিং ও থিংকিং ফ্রি টায়ার", "REASONING 🧠", "Deep Logic"),
+                AiEngineModelInfo("gemini-flash-latest", "Gemini Flash (Latest)", "গুগল ক্লাউডের অটোমেটিক লেটেস্ট প্রোডাকশন ফ্ল্যাশ", "DYNAMIC 🔄", "Auto"),
+                AiEngineModelInfo("gemini-pro-latest", "Gemini Pro (Latest)", "গুগল ক্লাউডের অটোমেটিক লেটেস্ট প্রোডাকশন প্রো", "PRO INTEL 💎", "Max")
+            )
+        ),
+        AiEngineInfo(
+            id = "GROQ",
+            name = "Groq Cloud (LPU)",
+            brandTag = "WORLD'S FASTEST ⚡",
+            description = "বিশ্বের দ্রুততম LPU চিপ স্পিড (৮০০+ টোকেন/সেকেন্ড)। ১০০% ফ্রি এপিআই কী ও LLaMA 3.3, Gemma 2, Mistral মডেল।",
+            officialKeyUrl = "https://console.groq.com/keys",
+            defaultModel = "llama-3.3-70b-versatile",
+            placeholderKey = "gsk_...",
+            models = listOf(
+                AiEngineModelInfo("llama-3.3-70b-versatile", "LLaMA 3.3 70B Versatile", "মেটার সেরা ওপেন সোর্স মডেল, ক্ষিপ্র গতি ও নির্ভুল বাংলা", "POPULAR 🔥", "800 T/s"),
+                AiEngineModelInfo("llama-3.1-8b-instant", "LLaMA 3.1 8B Instant", "ইনস্ট্যান্ট মিলিসেকেন্ড রেসপন্স, ভয়েস অ্যাসিস্ট্যান্টের জন্য সেরা", "ULTRA SPEED ⚡", "1200 T/s"),
+                AiEngineModelInfo("gemma2-9b-it", "Google Gemma 2 9B", "গুগলের ওপেন-ওয়েট লাইটওয়েট ইন্টেলিজেন্ট মডেল", "GOOGLE OPEN 🌐", "700 T/s"),
+                AiEngineModelInfo("mixtral-8x7b-32768", "Mixtral 8x7B (MoE)", "মিক্সচার অব এক্সপার্টস আর্কিটেকচার ও ৩২k কনটেক্সট", "MOE POWER 🧠", "600 T/s")
+            )
+        ),
+        AiEngineInfo(
+            id = "OPENROUTER",
+            name = "OpenRouter",
+            brandTag = "100+ FREE MODELS 🌐",
+            description = "একটি মাত্র ফ্রি এপিআই কী দিয়ে ১০০+ ফ্রি এআই মডেল (ChatGPT, Claude, DeepSeek, Llama, Qwen, Gemini) চালানো যায়।",
+            officialKeyUrl = "https://openrouter.ai/keys",
+            defaultModel = "meta-llama/llama-3.3-70b-instruct:free",
+            placeholderKey = "sk-or-v1-...",
+            models = listOf(
+                AiEngineModelInfo("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B (Free)", "মেটার পাওয়ারফুল ৭০ বিলিয়ন প্যারামিটার মডেল সম্পূর্ণ ফ্রি", "TOP FREE ⭐", "Free Tier"),
+                AiEngineModelInfo("google/gemini-2.0-flash-exp:free", "Gemini 2.0 Flash (Free)", "ওপেনরাউটারের মাধ্যমে সরাসরি গুগলের লেটেস্ট ফ্ল্যাশ", "GOOGLE FREE 🟢", "Fast"),
+                AiEngineModelInfo("deepseek/deepseek-chat:free", "DeepSeek V3 (Free)", "বিশ্বখ্যাত ডিপসিক ভি৩ রিজনিং মডেল ওপেনরাউটারে ফ্রি", "SMART FREE 💡", "High Intel"),
+                AiEngineModelInfo("qwen/qwen-2.5-72b-instruct:free", "Qwen 2.5 72B (Free)", "আলিবাবার উন্নত কোডিং ও বহুভাষিক ফ্ল্যাগশিপ ফ্রি মডেল", "CODING 💻", "Pro")
+            )
+        ),
+        AiEngineInfo(
+            id = "DEEPSEEK",
+            name = "DeepSeek AI",
+            brandTag = "REASONING & CODE 🧠",
+            description = "চীন ও গ্লোবাল সেনসেশন ডিপসিক - দুর্দান্ত লজিক, ম্যাথ ও বাংলা ভাষা বোঝার ক্ষমতা। ফ্রি ট্রায়াল ব্যালেন্স সহ এপিআই।",
+            officialKeyUrl = "https://platform.deepseek.com/api_keys",
+            defaultModel = "deepseek-chat",
+            placeholderKey = "sk-...",
+            models = listOf(
+                AiEngineModelInfo("deepseek-chat", "DeepSeek Chat (V3)", "ডিপসিকের নতুন ভি৩ মডেল - অত্যন্ত নির্ভুল, বাংলা ও ইংরেজি উভয়তেই সাবলীল", "FLAGSHIP ⭐", "Fast"),
+                AiEngineModelInfo("deepseek-reasoner", "DeepSeek Reasoner (R1)", "অ্যাডভান্সড চেইন-অব-থট ও ডিপ লজিক্যাল রিজনিং মডেল", "R1 THINKING 🧠", "Deep Logic")
+            )
+        ),
+        AiEngineInfo(
+            id = "HUGGINGFACE",
+            name = "Hugging Face Inference",
+            brandTag = "OPEN SOURCE HUB 🤗",
+            description = "হাগিংফেস সার্ভারলেস ইনফ্যারেন্স এপিআই - সম্পূর্ণ ফ্রি ইউজার টোকেন দিয়ে হাজারো ওপেন সোর্স মডেলের অ্যাক্সেস।",
+            officialKeyUrl = "https://huggingface.co/settings/tokens",
+            defaultModel = "mistralai/Mistral-7B-Instruct-v0.3",
+            placeholderKey = "hf_...",
+            models = listOf(
+                AiEngineModelInfo("mistralai/Mistral-7B-Instruct-v0.3", "Mistral 7B Instruct v0.3", "মিস্ট্রাল এআই-এর জনপ্রিয় হালকা ও ক্ষিপ্র মডেল", "LIGHT & FAST ⚡", "Serverless"),
+                AiEngineModelInfo("meta-llama/Meta-Llama-3-8B-Instruct", "Meta Llama 3 8B", "হাগিংফেসে মেটার ওপেন সোর্স মডেলের ফ্রি হোস্ট", "OPEN WEIGHT 🌐", "Reliable")
+            )
+        )
+    )
+
+    fun getEngineById(id: String): AiEngineInfo {
+        return ENGINES.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: ENGINES.first()
+    }
+}
