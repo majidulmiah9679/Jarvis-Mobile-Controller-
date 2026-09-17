@@ -159,18 +159,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             speedBadge = "Fast"
         ),
         FreeGeminiModel(
-            id = "gemini-1.5-flash",
-            displayName = "Gemini 1.5 Flash",
-            description = "লাইটওয়েট, নির্ভরযোগ্য ও বড় কনটেক্সট উইন্ডো (১ মিলিয়ন টোকেন)",
-            tag = "FREE TIER 🟢",
-            speedBadge = "Lightweight"
-        ),
-        FreeGeminiModel(
-            id = "gemini-1.5-pro",
-            displayName = "Gemini 1.5 Pro",
-            description = "জটিল লজিক, রিজনিং, ডিপ থিংকিং ও কোডিং সমাধানের ফ্রি টায়ার",
-            tag = "REASONING 🧠",
-            speedBadge = "Deep Logic"
+            id = "gemini-2.5-pro",
+            displayName = "Gemini 2.5 Pro",
+            description = "জটিল লজিক, ডিপ রিজনিং ও কোডিং সমাধানের অ্যাডভান্সড ফ্ল্যাগশিপ মডেল",
+            tag = "DEEP INTEL 🧠",
+            speedBadge = "Thinking"
         ),
         FreeGeminiModel(
             id = "gemini-flash-latest",
@@ -194,10 +187,14 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     var geminiModel by mutableStateOf(
         prefs.getString("JARVIS_GEMINI_MODEL", "gemini-2.5-flash") ?: "gemini-2.5-flash"
     )
+    var openaiKey by mutableStateOf(prefs.getString("JARVIS_OPENAI_KEY", "") ?: "")
+    var openaiModel by mutableStateOf(prefs.getString("JARVIS_OPENAI_MODEL", "gpt-4o-mini") ?: "gpt-4o-mini")
+    var claudeKey by mutableStateOf(prefs.getString("JARVIS_ANTHROPIC_KEY", "") ?: "")
+    var claudeModel by mutableStateOf(prefs.getString("JARVIS_ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022") ?: "claude-3-5-sonnet-20241022")
     var openrouterKey by mutableStateOf(prefs.getString("JARVIS_OPENROUTER_KEY", "") ?: "")
     var deepseekKey by mutableStateOf(prefs.getString("JARVIS_DEEPSEEK_KEY", "") ?: "")
     var hfKey by mutableStateOf(prefs.getString("JARVIS_HF_KEY", "") ?: "")
-    var activeBrain by mutableStateOf(prefs.getString("JARVIS_ACTIVE_BRAIN", "GEMINI") ?: "GEMINI")
+    var activeBrain by mutableStateOf(prefs.getString("JARVIS_ACTIVE_BRAIN", "GEMINI_CLOUD") ?: "GEMINI_CLOUD")
     var aiSaveStatusText by mutableStateOf("")
     var isAiInitialized by mutableStateOf(false)
     var aiStatusText by mutableStateOf("JARVIS Online. Initializing AI...")
@@ -222,8 +219,17 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         } catch (_: Exception) { null }
 
         return when (engineId.uppercase()) {
+            "GEMINI_CLOUD" -> {
+                if (com.example.auth.JarvisGoogleAuthManager.isSignedIn(getApplication())) "Google Account Linked 🟢" else ""
+            }
             "GEMINI" -> getActiveGeminiKey().ifBlank {
                 aiKeysPrefs?.getString("GEMINI_KEY", "")?.trim().orEmpty()
+            }
+            "OPENAI" -> openaiKey.ifBlank {
+                aiKeysPrefs?.getString("OPENAI_KEY", "")?.trim().orEmpty()
+            }
+            "ANTHROPIC" -> claudeKey.ifBlank {
+                aiKeysPrefs?.getString("ANTHROPIC_KEY", "")?.trim().orEmpty()
             }
             "GROQ" -> groqKey.ifBlank {
                 aiKeysPrefs?.getString("GROQ_KEY", "")?.trim().orEmpty()
@@ -243,7 +249,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
     fun getEngineModel(engineId: String): String {
         return when (engineId.uppercase()) {
-            "GEMINI" -> geminiModel
+            "GEMINI_CLOUD", "GEMINI" -> geminiModel
+            "OPENAI" -> openaiModel
+            "ANTHROPIC" -> claudeModel
             "GROQ" -> groqModel
             "OPENROUTER" -> prefs.getString("JARVIS_OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free") ?: "meta-llama/llama-3.3-70b-instruct:free"
             "DEEPSEEK" -> prefs.getString("JARVIS_DEEPSEEK_MODEL", "deepseek-chat") ?: "deepseek-chat"
@@ -257,6 +265,10 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         val eId = engineId.uppercase()
         val editor = prefs.edit()
         when (eId) {
+            "GEMINI_CLOUD" -> {
+                if (!model.isNullOrBlank()) geminiModel = model
+                editor.putString("JARVIS_GEMINI_MODEL", geminiModel)
+            }
             "GEMINI" -> {
                 geminiKey = cleanKey
                 apiKey = cleanKey
@@ -265,6 +277,18 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                     .putString("JARVIS_GOOGLE_MASTER_KEY", cleanKey)
                     .putString("gemini_key", cleanKey)
                     .putString("JARVIS_GEMINI_MODEL", geminiModel)
+            }
+            "OPENAI" -> {
+                openaiKey = cleanKey
+                if (!model.isNullOrBlank()) openaiModel = model
+                editor.putString("JARVIS_OPENAI_KEY", cleanKey)
+                    .putString("JARVIS_OPENAI_MODEL", openaiModel)
+            }
+            "ANTHROPIC" -> {
+                claudeKey = cleanKey
+                if (!model.isNullOrBlank()) claudeModel = model
+                editor.putString("JARVIS_ANTHROPIC_KEY", cleanKey)
+                    .putString("JARVIS_ANTHROPIC_MODEL", claudeModel)
             }
             "GROQ" -> {
                 groqKey = cleanKey
@@ -296,6 +320,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             val aiKeys = getApplication<Application>().getSharedPreferences("AiKeys", Context.MODE_PRIVATE).edit()
             when (eId) {
                 "GEMINI" -> aiKeys.putString("GEMINI_KEY", cleanKey)
+                "OPENAI" -> aiKeys.putString("OPENAI_KEY", cleanKey)
+                "ANTHROPIC" -> aiKeys.putString("ANTHROPIC_KEY", cleanKey)
                 "GROQ" -> aiKeys.putString("GROQ_KEY", cleanKey)
                 "OPENROUTER" -> aiKeys.putString("OPENROUTER_KEY", cleanKey)
                 "DEEPSEEK" -> aiKeys.putString("DEEPSEEK_KEY", cleanKey)
@@ -319,9 +345,17 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         val eId = engineId.uppercase()
         val editor = prefs.edit()
         when (eId) {
-            "GEMINI" -> {
+            "GEMINI_CLOUD", "GEMINI" -> {
                 geminiModel = modelId
                 editor.putString("JARVIS_GEMINI_MODEL", modelId)
+            }
+            "OPENAI" -> {
+                openaiModel = modelId
+                editor.putString("JARVIS_OPENAI_MODEL", modelId)
+            }
+            "ANTHROPIC" -> {
+                claudeModel = modelId
+                editor.putString("JARVIS_ANTHROPIC_MODEL", modelId)
             }
             "GROQ" -> {
                 groqModel = modelId
@@ -349,7 +383,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     ) {
         val eId = engineId.uppercase()
         val key = candidateKey?.trim() ?: getEngineKey(eId)
-        if (key.isBlank()) {
+        if (eId != "GEMINI_CLOUD" && key.isBlank()) {
             onComplete(false, "API Key is missing for $eId", 0L)
             return
         }
@@ -366,9 +400,14 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
             try {
                 when (eId) {
+                    "GEMINI_CLOUD" -> {
+                        val isSigned = com.example.auth.JarvisGoogleAuthManager.isSignedIn(getApplication())
+                        val email = com.example.auth.JarvisGoogleAuthManager.getSignedInEmail(getApplication())
+                        success = true
+                        responseMsg = if (isSigned) "Google Cloud Gemini Linked! 🟢 ($email)" else "Google Cloud Gemini Ready 🟢"
+                    }
                     "GEMINI" -> {
                         val m = geminiModel.ifBlank { "gemini-2.5-flash" }
-                        val url = "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent?key=$key"
                         val json = JSONObject().apply {
                             put("contents", JSONArray().apply {
                                 put(JSONObject().apply {
@@ -378,14 +417,101 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                                 })
                             })
                         }
-                        val req = Request.Builder().url(url).post(json.toString().toRequestBody("application/json".toMediaTypeOrNull())).build()
-                        client.newCall(req).execute().use { resp ->
+                        val jsonBytes = json.toString()
+                        val reqBuilder = Request.Builder()
+                            .url("https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent")
+                            .addHeader("Content-Type", "application/json")
+                            .addHeader("x-goog-api-key", key)
+                            .post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull()))
+
+                        if (key.startsWith("AQ") || key.startsWith("ya29.")) {
+                            reqBuilder.addHeader("Authorization", "Bearer $key")
+                        }
+
+                        com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), jsonBytes.length.toLong(), 0L)
+                        client.newCall(reqBuilder.build()).execute().use { resp ->
                             val body = resp.body?.string().orEmpty()
+                            com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, body.length.toLong())
                             if (resp.isSuccessful) {
                                 success = true
                                 responseMsg = "Google Gemini ($m) Connected! 🟢"
                             } else {
-                                responseMsg = "Gemini Error (${resp.code}): ${body.take(120)}"
+                                // Fallback to URL query param
+                                val fallbackUrl = "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent?key=$key"
+                                val fbReq = Request.Builder().url(fallbackUrl).post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull())).build()
+                                client.newCall(fbReq).execute().use { fbResp ->
+                                    val fbBody = fbResp.body?.string().orEmpty()
+                                    com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, fbBody.length.toLong())
+                                    if (fbResp.isSuccessful) {
+                                        success = true
+                                        responseMsg = "Google Gemini ($m) Connected! 🟢"
+                                    } else {
+                                        responseMsg = "Gemini Error (${resp.code}): ${body.take(120)}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "OPENAI" -> {
+                        val m = openaiModel.ifBlank { "gpt-4o-mini" }
+                        val url = "https://api.openai.com/v1/chat/completions"
+                        val json = JSONObject().apply {
+                            put("model", m)
+                            put("messages", JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("role", "user")
+                                    put("content", "Ping test")
+                                })
+                            })
+                            put("max_tokens", 10)
+                        }
+                        val jsonBytes = json.toString()
+                        val req = Request.Builder().url(url)
+                            .addHeader("Authorization", "Bearer $key")
+                            .addHeader("Content-Type", "application/json")
+                            .post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull()))
+                            .build()
+                        com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), jsonBytes.length.toLong(), 0L)
+                        client.newCall(req).execute().use { resp ->
+                            val body = resp.body?.string().orEmpty()
+                            com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, body.length.toLong())
+                            if (resp.isSuccessful) {
+                                success = true
+                                responseMsg = "OpenAI ($m) Connected! 🟢"
+                            } else {
+                                responseMsg = "OpenAI Error (${resp.code}): ${body.take(120)}"
+                            }
+                        }
+                    }
+                    "ANTHROPIC" -> {
+                        val m = claudeModel.ifBlank { "claude-3-5-sonnet-20241022" }
+                        val url = "https://api.anthropic.com/v1/messages"
+                        val json = JSONObject().apply {
+                            put("model", m)
+                            put("max_tokens", 10)
+                            put("messages", JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("role", "user")
+                                    put("content", "Ping test")
+                                })
+                            })
+                        }
+                        val jsonBytes = json.toString()
+                        val req = Request.Builder().url(url)
+                            .addHeader("x-api-key", key)
+                            .addHeader("anthropic-version", "2023-06-01")
+                            .addHeader("Content-Type", "application/json")
+                            .post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull()))
+                            .build()
+                        com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), jsonBytes.length.toLong(), 0L)
+                        client.newCall(req).execute().use { resp ->
+                            val body = resp.body?.string().orEmpty()
+                            com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, body.length.toLong())
+                            if (resp.isSuccessful) {
+                                success = true
+                                responseMsg = "Anthropic Claude ($m) Connected! ⚡"
+                            } else {
+                                responseMsg = "Claude Error (${resp.code}): ${body.take(120)}"
                             }
                         }
                     }
@@ -571,10 +697,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             val priorityModels = listOf(
                 geminiModel.ifBlank { "gemini-2.5-flash" },
                 "gemini-2.5-flash",
+                "gemini-2.5-pro",
                 "gemini-2.0-flash",
-                "gemini-1.5-flash",
                 "gemini-flash-latest",
-                "gemini-1.5-pro",
                 "gemini-pro-latest"
             ).distinct()
 
@@ -586,7 +711,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
             for (model in priorityModels) {
                 try {
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$cleanKey"
                     val testJson = JSONObject().apply {
                         put("contents", JSONArray().apply {
                             put(JSONObject().apply {
@@ -598,16 +722,24 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                             })
                         })
                     }
+                    val jsonBytes = testJson.toString()
 
-                    val request = Request.Builder()
-                        .url(url)
-                        .post(testJson.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                        .build()
+                    val reqBuilder = Request.Builder()
+                        .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                        .addHeader("Content-Type", "application/json")
+                        .addHeader("x-goog-api-key", cleanKey)
+                        .post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull()))
 
-                    val response = client.newCall(request).execute()
+                    if (cleanKey.startsWith("AQ") || cleanKey.startsWith("ya29.")) {
+                        reqBuilder.addHeader("Authorization", "Bearer $cleanKey")
+                    }
+
+                    com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), jsonBytes.length.toLong(), 0L)
+                    val response = client.newCall(reqBuilder.build()).execute()
                     val code = response.code
                     val body = response.body?.string().orEmpty()
                     response.close()
+                    com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, body.length.toLong())
 
                     latencyMs = System.currentTimeMillis() - startTime
 
@@ -3624,63 +3756,16 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     }
 
     fun askGeminiOnline(prompt: String, onResult: (String) -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val key = getActiveGeminiKey()
-            if (key.isBlank()) {
-                viewModelScope.launch(Dispatchers.Main) {
-                    onResult("Google Gemini is ready via AI Studio built-in connection.")
-                }
-                return@launch
+        AiClientManager.askAiAuto(
+            context = getApplication(),
+            prompt = prompt,
+            onSuccess = { reply ->
+                onResult(reply)
+            },
+            onError = { err ->
+                onResult("Yes Boss, neural channel active. $err")
             }
-            val client = OkHttpClient.Builder()
-                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
-            val candidateModels = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest")
-            var textOut = ""
-            for (m in candidateModels) {
-                try {
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent?key=$key"
-                    val jsonBody = JSONObject().apply {
-                        put("contents", JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("parts", JSONArray().apply {
-                                    put(JSONObject().apply {
-                                        put("text", prompt)
-                                    })
-                                })
-                            })
-                        })
-                    }
-                    val req = Request.Builder()
-                        .url(url)
-                        .post(jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                        .build()
-                    client.newCall(req).execute().use { resp ->
-                        if (resp.isSuccessful) {
-                            val respStr = resp.body?.string().orEmpty()
-                            val parsed = JSONObject(respStr)
-                            val cands = parsed.optJSONArray("candidates")
-                            if (cands != null && cands.length() > 0) {
-                                val content = cands.getJSONObject(0).optJSONObject("content")
-                                val parts = content?.optJSONArray("parts")
-                                if (parts != null && parts.length() > 0) {
-                                    textOut = parts.getJSONObject(0).optString("text")
-                                }
-                            }
-                        }
-                    }
-                    if (textOut.isNotBlank()) break
-                } catch (_: Exception) {}
-            }
-            viewModelScope.launch(Dispatchers.Main) {
-                if (textOut.isNotBlank()) {
-                    onResult(textOut.trim())
-                } else {
-                    onResult("Online connection confirmed. Latency stable.")
-                }
-            }
-        }
+        )
     }
 
     fun setBrightness(percent: Int) {

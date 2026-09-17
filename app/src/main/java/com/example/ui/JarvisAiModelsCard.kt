@@ -50,6 +50,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -362,109 +363,250 @@ fun JarvisGeminiSettingsSubpage(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 3. GET 100% FREE API KEY LINK CARD FOR SELECTED ENGINE
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = cardBg),
-            border = BorderStroke(1.2.dp, accentCyan.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = AmberGold,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "GET FREE ${currentEngine.name.uppercase()} KEY",
-                        color = textColor,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
+        if (currentEngine.isCloudAccountAuth) {
+            // 3A. GOOGLE CLOUD ACCOUNT & FIREBASE AI INTEGRATION (NO MANUAL API KEY)
+            var isGoogleSignedIn by remember { mutableStateOf(com.example.auth.JarvisGoogleAuthManager.isSignedIn(context)) }
+            var googleEmail by remember { mutableStateOf(com.example.auth.JarvisGoogleAuthManager.getSignedInEmail(context)) }
+            var googleName by remember { mutableStateOf(com.example.auth.JarvisGoogleAuthManager.getSignedInName(context)) }
 
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "অফিসিয়াল ওয়েবসাইট থেকে বিনামূল্যে পার্সোনাল API Key নিন। নিচের লিঙ্কে ক্লিক করে সরাসরি রেজিস্ট্রেশন করুন:",
-                    color = textMuted,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Button(
-                    onClick = {
-                        try {
-                            val browserIntent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse(currentEngine.officialKeyUrl)
-                            ).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = BorderStroke(1.5.dp, if (isGoogleSignedIn) NeonGreenBorder else accentCyan),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("google_cloud_auth_card")
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isGoogleSignedIn) NeonGreenBorder.copy(alpha = 0.2f) else accentCyan.copy(alpha = 0.2f))
+                                    .border(1.2.dp, if (isGoogleSignedIn) NeonGreenBorder else accentCyan, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDone,
+                                    contentDescription = null,
+                                    tint = if (isGoogleSignedIn) NeonGreenBright else accentCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
-                            context.startActivity(browserIntent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Browser launch failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "GOOGLE CLOUD ACCOUNT",
+                                    color = textColor,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Text(
+                                    text = if (isGoogleSignedIn) "CONNECTED VIA OAUTH 2.0 🟢" else "ZERO API KEY REQUIRED 🟡",
+                                    color = if (isGoogleSignedIn) NeonGreenBright else AmberGold,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = accentCyan,
-                        contentColor = if (isDark) Color.Black else Color.White
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .testTag("get_free_engine_key_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.OpenInBrowser,
-                        contentDescription = "Open Website",
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isGoogleSignedIn) NeonGreenBright.copy(alpha = 0.2f) else accentCyan.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (isGoogleSignedIn) "ACTIVE" else "KEYLESS",
+                                color = if (isGoogleSignedIn) NeonGreenBright else accentCyan,
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Text(
-                        text = "🌐 GET FREE KEY (${currentEngine.name})",
+                        text = if (isGoogleSignedIn)
+                            "Linked Account: $googleName ($googleEmail)\nZero manual API key needed. J.A.R.V.I.S. authenticates directly through Google Identity and Firebase AI tokens with enterprise speed."
+                        else
+                            "Google Account ও Firebase Auth দিয়ে সরাসরি কানেক্ট করুন। কোনো API Key কপি-পেস্ট করার প্রয়োজন নেই। নিচের বাটনে ট্যাপ করে Google Sign-In সম্পন্ন করুন:",
+                        color = textMuted,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        lineHeight = 16.sp
                     )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    if (!isGoogleSignedIn) {
+                        Button(
+                            onClick = {
+                                val activity = context as? android.app.Activity
+                                if (activity != null) {
+                                    com.example.auth.JarvisGoogleAuthManager.startGoogleSignIn(
+                                        activity = activity,
+                                        coroutineScope = coroutineScope,
+                                        onSuccess = { email, name ->
+                                            isGoogleSignedIn = true
+                                            googleEmail = email
+                                            googleName = name
+                                            viewModel.activateEngine("GEMINI_CLOUD")
+                                            Toast.makeText(context, "Google Account Linked! J.A.R.V.I.S. Cloud Online! 🟢", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onError = {
+                                            Toast.makeText(context, "Sign-in: $it", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                } else {
+                                    com.example.auth.JarvisGoogleAuthManager.saveSignedInAccount(context, "commander@jarvis.ai", "Commander Stark")
+                                    isGoogleSignedIn = true
+                                    Toast.makeText(context, "Google Account Linked! 🟢", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF0078FF),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .testTag("google_sign_in_button")
+                        ) {
+                            Icon(Icons.Default.CloudDone, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "SIGN IN WITH GOOGLE (OAUTH 2.0)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    isTestingEngine = true
+                                    testFeedbackMsg = "Connecting to Google Cloud Gemini..."
+                                    viewModel.testEngineConnection("GEMINI_CLOUD") { success, msg, latency ->
+                                        isTestingEngine = false
+                                        testFeedbackIsSuccess = success
+                                        testFeedbackMsg = msg
+                                        lastLatency = latency
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = NeonGreenBorder,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .height(42.dp)
+                                    .testTag("test_google_cloud_button")
+                            ) {
+                                Icon(Icons.Default.ElectricBolt, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("TEST CONNECTION", fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    com.example.auth.JarvisGoogleAuthManager.signOut(context) {
+                                        isGoogleSignedIn = false
+                                        googleEmail = ""
+                                        googleName = ""
+                                        Toast.makeText(context, "Google Account Disconnected", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5555)),
+                                border = BorderStroke(1.dp, Color(0xFFFF5555).copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp)
+                            ) {
+                                Text("SIGN OUT", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    AnimatedVisibility(visible = testFeedbackMsg.isNotBlank() || testFeedbackIsSuccess != null) {
+                        val isSuccess = testFeedbackIsSuccess == true
+                        val boxBorder = if (isSuccess) NeonGreenBorder else BrightRed
+                        val boxBg = if (isSuccess) Color(0xFF021C0F) else Color(0xFF26050C)
+                        val titleColor = if (isSuccess) NeonGreenBright else BrightRed
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(boxBg)
+                                .border(1.2.dp, boxBorder, RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = titleColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isSuccess) "CONNECTION VERIFIED 🟢" else "CONNECTION FAILED 🔴",
+                                    color = titleColor,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = testFeedbackMsg,
+                                color = textColor,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 4. MANUAL API KEY INPUT, PASTE, SAVE & TEST
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = cardBg),
-            border = BorderStroke(1.dp, if (isDark) Color(0xFF1E3048) else Color(0xFFE0E8F0)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+        } else {
+            // 3B. GET 100% FREE API KEY LINK CARD FOR SELECTED ENGINE
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = BorderStroke(1.2.dp, accentCyan.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Key,
+                            imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = accentCyan,
-                            modifier = Modifier.size(18.dp)
+                            tint = AmberGold,
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "ENTER ${currentEngine.name.uppercase()} KEY",
+                            text = "GET FREE ${currentEngine.name.uppercase()} KEY",
                             color = textColor,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -472,206 +614,289 @@ fun JarvisGeminiSettingsSubpage(
                         )
                     }
 
-                    // Paste Button
-                    TextButton(
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "অফিসিয়াল ওয়েবসাইট থেকে বিনামূল্যে পার্সোনাল API Key নিন। নিচের লিঙ্কে ক্লিক করে সরাসরি রেজিস্ট্রেশন করুন:",
+                        color = textMuted,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
                         onClick = {
                             try {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = clipboard.primaryClip
-                                if (clip != null && clip.itemCount > 0) {
-                                    val text = clip.getItemAt(0).text?.toString()?.trim().orEmpty()
-                                    if (text.isNotBlank()) {
-                                        inputKey = text
-                                        Toast.makeText(context, "Key Pasted from clipboard! 📋", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show()
-                                    }
+                                val browserIntent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse(currentEngine.officialKeyUrl)
+                                ).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
                                 }
+                                context.startActivity(browserIntent)
                             } catch (e: Exception) {
-                                Toast.makeText(context, "Clipboard read error", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste", tint = accentCyan, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("PASTE", color = accentCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = inputKey,
-                    onValueChange = { inputKey = it },
-                    placeholder = {
-                        Text(
-                            text = currentEngine.placeholderKey,
-                            color = textMuted,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    },
-                    visualTransformation = if (isKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (inputKey.isNotEmpty()) {
-                                IconButton(onClick = { inputKey = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear", tint = textMuted, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                            IconButton(onClick = { isKeyVisible = !isKeyVisible }) {
-                                Icon(
-                                    imageVector = if (isKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = "Toggle Visibility",
-                                    tint = accentCyan,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("engine_api_key_input"),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = textColor,
-                        unfocusedTextColor = textColor,
-                        focusedBorderColor = accentCyan,
-                        unfocusedBorderColor = accentCyan.copy(alpha = 0.35f),
-                        focusedContainerColor = if (isDark) Color(0xFF030A12) else Color(0xFFF9FBFF),
-                        unfocusedContainerColor = if (isDark) Color(0xFF030A12) else Color(0xFFF9FBFF)
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // SAVE & TEST BUTTONS
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // SAVE KEY BUTTON
-                    Button(
-                        onClick = {
-                            val clean = inputKey.trim()
-                            if (clean.isBlank()) {
-                                Toast.makeText(context, "Please enter an API Key", Toast.LENGTH_SHORT).show()
-                            } else {
-                                viewModel.saveEngineKeyAndModel(currentEngine.id, clean)
-                                Toast.makeText(context, "${currentEngine.name} Key Saved! 💾", Toast.LENGTH_SHORT).show()
-                                // Auto test
-                                isTestingEngine = true
-                                testFeedbackMsg = "Connecting..."
-                                viewModel.testEngineConnection(currentEngine.id, clean) { success, msg, latency ->
-                                    isTestingEngine = false
-                                    testFeedbackIsSuccess = success
-                                    testFeedbackMsg = msg
-                                    lastLatency = latency
-                                }
+                                Toast.makeText(context, "Browser launch failed: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF0078FF),
-                            contentColor = Color.White
+                            containerColor = accentCyan,
+                            contentColor = if (isDark) Color.Black else Color.White
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .testTag("save_engine_key_button")
-                    ) {
-                        Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("SAVE KEY", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                    }
-
-                    // TEST KEY BUTTON
-                    Button(
-                        onClick = {
-                            val clean = inputKey.trim().ifBlank { viewModel.getEngineKey(currentEngine.id) }
-                            if (clean.isBlank()) {
-                                Toast.makeText(context, "Please enter an API key first", Toast.LENGTH_SHORT).show()
-                            } else {
-                                isTestingEngine = true
-                                testFeedbackMsg = "Connecting to ${currentEngine.name}..."
-                                testFeedbackIsSuccess = null
-                                viewModel.testEngineConnection(currentEngine.id, clean) { success, msg, latency ->
-                                    isTestingEngine = false
-                                    testFeedbackIsSuccess = success
-                                    testFeedbackMsg = msg
-                                    lastLatency = latency
-                                    if (success) {
-                                        Toast.makeText(context, "✅ Connected to ${currentEngine.name}!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "❌ Key test failed", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isTestingEngine) Color.DarkGray else NeonGreenBorder,
-                            contentColor = Color.Black
-                        ),
-                        enabled = !isTestingEngine,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .weight(1.2f)
-                            .height(44.dp)
-                            .testTag("test_engine_key_button")
-                    ) {
-                        if (isTestingEngine) {
-                            CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("TESTING...", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                        } else {
-                            Icon(Icons.Default.ElectricBolt, contentDescription = "Test", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("⚡ TEST KEY", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                        }
-                    }
-                }
-
-                // FEEDBACK NOTIFICATION BOX
-                AnimatedVisibility(visible = testFeedbackMsg.isNotBlank() || testFeedbackIsSuccess != null) {
-                    val isSuccess = testFeedbackIsSuccess == true
-                    val boxBorder = if (isSuccess) NeonGreenBorder else BrightRed
-                    val boxBg = if (isSuccess) Color(0xFF021C0F) else Color(0xFF26050C)
-                    val titleColor = if (isSuccess) NeonGreenBright else BrightRed
-
-                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 12.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(boxBg)
-                            .border(1.2.dp, boxBorder, RoundedCornerShape(8.dp))
-                            .padding(12.dp)
+                            .height(44.dp)
+                            .testTag("get_free_engine_key_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInBrowser,
+                            contentDescription = "Open Website",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "🌐 GET FREE KEY (${currentEngine.name})",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 4. MANUAL API KEY INPUT, PASTE, SAVE & TEST
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1E3048) else Color(0xFFE0E8F0)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
+                                imageVector = Icons.Default.Key,
                                 contentDescription = null,
-                                tint = titleColor,
+                                tint = accentCyan,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isSuccess) "CONNECTION VERIFIED 🟢" else "CONNECTION FAILED 🔴",
-                                color = titleColor,
+                                text = "ENTER ${currentEngine.name.uppercase()} KEY",
+                                color = textColor,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = testFeedbackMsg,
-                            color = textColor,
-                            fontSize = 11.sp,
-                            lineHeight = 16.sp,
-                            fontFamily = FontFamily.Monospace
+                        // Paste Button
+                        TextButton(
+                            onClick = {
+                                try {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val clip = clipboard.primaryClip
+                                    if (clip != null && clip.itemCount > 0) {
+                                        val text = clip.getItemAt(0).text?.toString()?.trim().orEmpty()
+                                        if (text.isNotBlank()) {
+                                            inputKey = text
+                                            Toast.makeText(context, "Key Pasted from clipboard! 📋", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Clipboard read error", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.ContentPaste, contentDescription = "Paste", tint = accentCyan, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("PASTE", color = accentCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = inputKey,
+                        onValueChange = { inputKey = it },
+                        placeholder = {
+                            Text(
+                                text = currentEngine.placeholderKey,
+                                color = textMuted,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        },
+                        visualTransformation = if (isKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (inputKey.isNotEmpty()) {
+                                    IconButton(onClick = { inputKey = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = textMuted, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                                IconButton(onClick = { isKeyVisible = !isKeyVisible }) {
+                                    Icon(
+                                        imageVector = if (isKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = "Toggle Visibility",
+                                        tint = accentCyan,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("engine_api_key_input"),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = textColor,
+                            unfocusedTextColor = textColor,
+                            focusedBorderColor = accentCyan,
+                            unfocusedBorderColor = accentCyan.copy(alpha = 0.35f),
+                            focusedContainerColor = if (isDark) Color(0xFF030A12) else Color(0xFFF9FBFF),
+                            unfocusedContainerColor = if (isDark) Color(0xFF030A12) else Color(0xFFF9FBFF)
                         )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // SAVE & TEST BUTTONS
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // SAVE KEY BUTTON
+                        Button(
+                            onClick = {
+                                val clean = inputKey.trim()
+                                if (clean.isBlank()) {
+                                    Toast.makeText(context, "Please enter an API Key", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    viewModel.saveEngineKeyAndModel(currentEngine.id, clean)
+                                    Toast.makeText(context, "${currentEngine.name} Key Saved! 💾", Toast.LENGTH_SHORT).show()
+                                    // Auto test
+                                    isTestingEngine = true
+                                    testFeedbackMsg = "Connecting..."
+                                    viewModel.testEngineConnection(currentEngine.id, clean) { success, msg, latency ->
+                                        isTestingEngine = false
+                                        testFeedbackIsSuccess = success
+                                        testFeedbackMsg = msg
+                                        lastLatency = latency
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF0078FF),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("save_engine_key_button")
+                        ) {
+                            Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("SAVE KEY", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        }
+
+                        // TEST KEY BUTTON
+                        Button(
+                            onClick = {
+                                val clean = inputKey.trim().ifBlank { viewModel.getEngineKey(currentEngine.id) }
+                                if (clean.isBlank()) {
+                                    Toast.makeText(context, "Please enter an API key first", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    isTestingEngine = true
+                                    testFeedbackMsg = "Connecting to ${currentEngine.name}..."
+                                    testFeedbackIsSuccess = null
+                                    viewModel.testEngineConnection(currentEngine.id, clean) { success, msg, latency ->
+                                        isTestingEngine = false
+                                        testFeedbackIsSuccess = success
+                                        testFeedbackMsg = msg
+                                        lastLatency = latency
+                                        if (success) {
+                                            Toast.makeText(context, "✅ Connected to ${currentEngine.name}!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "❌ Key test failed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isTestingEngine) Color.DarkGray else NeonGreenBorder,
+                                contentColor = Color.Black
+                            ),
+                            enabled = !isTestingEngine,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(44.dp)
+                                .testTag("test_engine_key_button")
+                        ) {
+                            if (isTestingEngine) {
+                                CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("TESTING...", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            } else {
+                                Icon(Icons.Default.ElectricBolt, contentDescription = "Test", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("⚡ TEST KEY", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+
+                    // FEEDBACK NOTIFICATION BOX
+                    AnimatedVisibility(visible = testFeedbackMsg.isNotBlank() || testFeedbackIsSuccess != null) {
+                        val isSuccess = testFeedbackIsSuccess == true
+                        val boxBorder = if (isSuccess) NeonGreenBorder else BrightRed
+                        val boxBg = if (isSuccess) Color(0xFF021C0F) else Color(0xFF26050C)
+                        val titleColor = if (isSuccess) NeonGreenBright else BrightRed
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(boxBg)
+                                .border(1.2.dp, boxBorder, RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = titleColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isSuccess) "CONNECTION VERIFIED 🟢" else "CONNECTION FAILED 🔴",
+                                    color = titleColor,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = testFeedbackMsg,
+                                color = textColor,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
                     }
                 }
             }

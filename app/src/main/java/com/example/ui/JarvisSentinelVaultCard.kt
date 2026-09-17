@@ -686,6 +686,28 @@ private fun AppThreatItemCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
+            // Data Usage & Installation Source
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "DATA USAGE: ${com.example.network.JarvisNetworkTracker.formatBytes(app.backgroundDataBytes)}",
+                    color = ArcCyanGlow,
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "SOURCE: ${app.installSource.take(18)}",
+                    color = HoloTextSecondary,
+                    fontSize = 8.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+
             // Sensitive Permissions Tags
             if (app.permissionsUsed.isNotEmpty()) {
                 Row(

@@ -8,7 +8,8 @@ data class AiEngineInfo(
     val officialKeyUrl: String,
     val defaultModel: String,
     val models: List<AiEngineModelInfo>,
-    val placeholderKey: String
+    val placeholderKey: String,
+    val isCloudAccountAuth: Boolean = false
 )
 
 data class AiEngineModelInfo(
@@ -23,20 +24,61 @@ object JarvisAiEnginesRegistry {
 
     val ENGINES = listOf(
         AiEngineInfo(
-            id = "GEMINI",
-            name = "Google Gemini",
-            brandTag = "OFFICIAL GOOGLE ⭐",
-            description = "গুগলের ফ্ল্যাগশিপ মাল্টিমোডাল এআই। সম্পূর্ণ ফ্রিতে আনলিমিটেড কোটা ও দ্রুততম রেসপন্স।",
+            id = "GEMINI_CLOUD",
+            name = "Google Gemini (Cloud / Account Integration)",
+            brandTag = "RECOMMENDED (NO KEY) ⭐",
+            description = "Google Account OAuth ও Firebase AI এর মাধ্যমে সরাসরি কানেকশন। কোনো ম্যানুয়াল API key এর ঝামেলা নেই।",
             officialKeyUrl = "https://aistudio.google.com/app/apikey",
             defaultModel = "gemini-2.5-flash",
-            placeholderKey = "AIzaSy...",
+            placeholderKey = "Auto OAuth via Google Account",
+            isCloudAccountAuth = true,
+            models = listOf(
+                AiEngineModelInfo("gemini-2.5-flash", "Gemini 2.5 Flash", "Google-এর লেটেস্ট ফ্ল্যাগশিপ ফ্রি মডেল (সুপার-ফাস্ট ও স্মার্ট)", "FLAGSHIP 2026 ⭐", "Ultra-Fast"),
+                AiEngineModelInfo("gemini-2.5-pro", "Gemini 2.5 Pro", "ডিপ লজিক ও অ্যাডভান্সড কোডিং রিজনিং মডেল", "DEEP INTEL 🧠", "Thinking"),
+                AiEngineModelInfo("gemini-2.0-flash", "Gemini 2.0 Flash", "হাই স্পিড জেনারেশন, রিয়েল-টাইম বাংলা ও ইংরেজি রেসপন্স", "HIGH SPEED ⚡", "Fast")
+            )
+        ),
+        AiEngineInfo(
+            id = "GEMINI",
+            name = "Google Gemini (API Key)",
+            brandTag = "OFFICIAL GOOGLE ⭐",
+            description = "গুগলের অফিশিয়াল জেমিনি এআই। নতুন AQ... ও লেগ্যাসি AIzaSy... উভয় এপিআই কী সাপোর্ট করে।",
+            officialKeyUrl = "https://aistudio.google.com/app/apikey",
+            defaultModel = "gemini-2.5-flash",
+            placeholderKey = "AQ... or AIzaSy...",
             models = listOf(
                 AiEngineModelInfo("gemini-2.5-flash", "Gemini 2.5 Flash", "Google-এর লেটেস্ট ফ্ল্যাগশিপ ফ্রি মডেল (সুপার-ফাস্ট ও স্মার্ট)", "RECOMMENDED ⭐", "Ultra-Fast"),
+                AiEngineModelInfo("gemini-2.5-pro", "Gemini 2.5 Pro", "ডিপ রিজনিং, জটিল কোডিং ও থিংকিং ফ্রি টায়ার", "REASONING 🧠", "Deep Logic"),
                 AiEngineModelInfo("gemini-2.0-flash", "Gemini 2.0 Flash", "হাই স্পিড জেনারেশন, রিয়েল-টাইম বাংলা ও ইংরেজি রেসপন্স", "HIGH SPEED ⚡", "Fast"),
-                AiEngineModelInfo("gemini-1.5-flash", "Gemini 1.5 Flash", "লাইটওয়েট, স্থিতিশীল ও ১ মিলিয়ন টোকেন মেমোরি", "FREE TIER 🟢", "Lightweight"),
-                AiEngineModelInfo("gemini-1.5-pro", "Gemini 1.5 Pro", "ডিপ রিজনিং, জটিল কোডিং ও থিংকিং ফ্রি টায়ার", "REASONING 🧠", "Deep Logic"),
                 AiEngineModelInfo("gemini-flash-latest", "Gemini Flash (Latest)", "গুগল ক্লাউডের অটোমেটিক লেটেস্ট প্রোডাকশন ফ্ল্যাশ", "DYNAMIC 🔄", "Auto"),
                 AiEngineModelInfo("gemini-pro-latest", "Gemini Pro (Latest)", "গুগল ক্লাউডের অটোমেটিক লেটেস্ট প্রোডাকশন প্রো", "PRO INTEL 💎", "Max")
+            )
+        ),
+        AiEngineInfo(
+            id = "OPENAI",
+            name = "OpenAI ChatGPT (Latest)",
+            brandTag = "GPT-4o & o1 ⭐",
+            description = "বিশ্ববিখ্যাত OpenAI ChatGPT ফ্ল্যাগশিপ মডেল। GPT-4o, GPT-4o-mini ও o1 reasoning সাপোর্ট।",
+            officialKeyUrl = "https://platform.openai.com/api-keys",
+            defaultModel = "gpt-4o-mini",
+            placeholderKey = "sk-proj-...",
+            models = listOf(
+                AiEngineModelInfo("gpt-4o-mini", "GPT-4o Mini", "ক্ষিপ্র গতি ও সাশ্রয়ী ফ্ল্যাগশিপ মাল্টিমোডাল মডেল", "FAST & SMART ⚡", "Instant"),
+                AiEngineModelInfo("gpt-4o", "GPT-4o Omni", "OpenAI-এর পূর্ণাঙ্গ ফ্ল্যাগশিপ ইন্টেলিজেন্স ও নিখুঁত বাংলা", "FLAGSHIP 💎", "Balanced"),
+                AiEngineModelInfo("o1-preview", "OpenAI o1 Reasoning", "উন্নত স্টেপ-বাই-স্টেপ থিংকিং ও জটিল সমস্যা সমাধান", "O1 THINKING 🧠", "Max Logic")
+            )
+        ),
+        AiEngineInfo(
+            id = "ANTHROPIC",
+            name = "Anthropic Claude",
+            brandTag = "CLAUDE 3.5 🧠",
+            description = "বিশ্বের অন্যতম সেরা কোডিং ও লিটারেচার এআই। ক্লদ ৩.৫ সনেট ও হাইকু মডেল সাপোর্ট।",
+            officialKeyUrl = "https://console.anthropic.com/settings/keys",
+            defaultModel = "claude-3-5-sonnet-20241022",
+            placeholderKey = "sk-ant-...",
+            models = listOf(
+                AiEngineModelInfo("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet", "অসাধারণ বুদ্ধিমত্তা, কোডিং ও প্রাকৃতিক কথোপকথন", "TOP RATED ⭐", "Smart"),
+                AiEngineModelInfo("claude-3-haiku-20240307", "Claude 3 Haiku", "ক্ষিপ্র গতির লাইটওয়েট রেসপন্স ও ইনস্ট্যান্ট ইন্টারঅ্যাকশন", "FAST SPEED ⚡", "Fast")
             )
         ),
         AiEngineInfo(
