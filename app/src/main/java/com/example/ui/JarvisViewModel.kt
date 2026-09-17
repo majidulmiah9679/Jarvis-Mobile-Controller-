@@ -6,6 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -91,12 +95,19 @@ data class AutoReplyRecord(
     val category: String
 )
 
+enum class KeyValidationStatus {
+    IDLE,
+    VALIDATING,
+    VALID,      // Green Tick Verified (Working)
+    INVALID     // Red Tick / Cross (Failed)
+}
+
 class JarvisViewModel(application: Application) : AndroidViewModel(application), TextToSpeech.OnInitListener {
 
     private val prefs = application.getSharedPreferences("jarvis_lite_prefs", Context.MODE_PRIVATE)
 
     // UI state properties
-    var coreLog by mutableStateOf("J.A.R.V.I.S. is fully online and ready to control your device...")
+    var coreLog by mutableStateOf("JARVIS Online 🟢\nAI Studio Gemini Brain Connected. Ready for Boss.")
     var isListening by mutableStateOf(false)
     var isTorchOn by mutableStateOf(false)
     var currentTab by mutableStateOf(0)
@@ -121,16 +132,143 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         logAction("Theme set to: ${if (isDark) "🌙 DARK (JARVIS HUD)" else "☀️ LIGHT (Default)"}")
     }
 
-    // AI Models & Free Keys - Boss Edition state
+    // AI Models & Free Keys - Boss Edition state (Google Gemini is #1 MAIN BRAIN)
     var groqKey by mutableStateOf(prefs.getString("JARVIS_GROQ_KEY", "") ?: "")
     var groqModel by mutableStateOf(prefs.getString("JARVIS_GROQ_MODEL", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile")
     var geminiKey by mutableStateOf(prefs.getString("JARVIS_GEMINI_KEY", prefs.getString("JARVIS_GOOGLE_MASTER_KEY", prefs.getString("gemini_key", "") ?: "") ?: "") ?: "")
-    var geminiModel by mutableStateOf(prefs.getString("JARVIS_GEMINI_MODEL", "gemini-2.0-flash") ?: "gemini-2.0-flash")
+    var geminiModel by mutableStateOf(
+        prefs.getString("JARVIS_GEMINI_MODEL", "gemini-2.5-flash")?.let {
+            if (it == "gemini-2.0-flash" || it == "gemini-1.5-flash") "gemini-2.5-flash" else it
+        } ?: "gemini-2.5-flash"
+    )
     var openrouterKey by mutableStateOf(prefs.getString("JARVIS_OPENROUTER_KEY", "") ?: "")
     var deepseekKey by mutableStateOf(prefs.getString("JARVIS_DEEPSEEK_KEY", "") ?: "")
     var hfKey by mutableStateOf(prefs.getString("JARVIS_HF_KEY", "") ?: "")
-    var activeBrain by mutableStateOf(prefs.getString("JARVIS_ACTIVE_BRAIN", "GROQ") ?: "GROQ")
+    var activeBrain by mutableStateOf(prefs.getString("JARVIS_ACTIVE_BRAIN", "GEMINI") ?: "GEMINI")
     var aiSaveStatusText by mutableStateOf("")
+
+    // Live Gemini Verification Status (Green Tick / Red Tick)
+    var geminiValidationStatus by mutableStateOf(KeyValidationStatus.VALID)
+    var geminiValidationError by mutableStateOf("")
+
+    // Real-Time Mobile & Internet Connection Monitoring
+    var isNetworkOnline by mutableStateOf(false)
+    var networkType by mutableStateOf("DISCONNECTED") // "MOBILE DATA", "WI-FI", "ETHERNET", "DISCONNECTED"
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    fun getActiveGeminiKey(): String {
+        val candidate = geminiKey.trim().ifBlank { apiKey.trim() }
+        if (candidate.isNotBlank()) return candidate
+        try {
+            val bKey = com.example.BuildConfig.GEMINI_API_KEY.trim()
+            if (bKey.isNotBlank() && bKey != "MY_GEMINI_API_KEY") return bKey
+        } catch (_: Exception) {}
+        return ""
+    }
+
+    fun verifyGeminiApiKey(candidateKey: String? = null, onResult: ((Boolean, String) -> Unit)? = null) {
+        val rawKey = candidateKey ?: getActiveGeminiKey()
+        val cleanKey = rawKey.trim()
+        if (cleanKey.isBlank() || cleanKey == "MY_GEMINI_API_KEY") {
+            geminiValidationStatus = KeyValidationStatus.INVALID
+            geminiValidationError = "Google Gemini API Key is missing. Please enter your API Key."
+            onResult?.invoke(false, geminiValidationError)
+            return
+        }
+
+        geminiValidationStatus = KeyValidationStatus.VALIDATING
+        geminiValidationError = ""
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val testModels = listOf(
+                geminiModel.ifBlank { "gemini-2.5-flash" },
+                "gemini-2.5-flash",
+                "gemini-flash-latest",
+                "gemini-3.5-flash"
+            ).distinct().filter { it != "gemini-2.0-flash" && it != "gemini-1.5-flash" }
+
+            var success = false
+            var finalErrMsg = "Connection failed"
+            var verifiedModel = "gemini-2.5-flash"
+
+            for (model in testModels) {
+                try {
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$cleanKey"
+                    val testJson = JSONObject().apply {
+                        put("contents", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("parts", JSONArray().apply {
+                                    put(JSONObject().apply {
+                                        put("text", "ping")
+                                    })
+                                })
+                            })
+                        })
+                    }
+
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(testJson.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                        .build()
+
+                    val response = client.newCall(request).execute()
+                    val code = response.code
+                    val body = response.body?.string().orEmpty()
+                    response.close()
+
+                    if (code in 200..299) {
+                        success = true
+                        verifiedModel = model
+                        break
+                    } else {
+                        val parsed = try {
+                            val j = JSONObject(body)
+                            j.optJSONObject("error")?.optString("message") ?: "HTTP $code"
+                        } catch (_: Exception) {
+                            "HTTP $code: ${body.take(100)}"
+                        }
+                        finalErrMsg = "Error ($code): $parsed"
+                        if (code != 404) {
+                            break
+                        }
+                    }
+                } catch (e: Exception) {
+                    finalErrMsg = e.message ?: "Network connection failed"
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                if (success) {
+                    geminiValidationStatus = KeyValidationStatus.VALID
+                    geminiValidationError = "Connected & Active (Official Gemini)"
+                    geminiModel = verifiedModel
+                    geminiKey = cleanKey
+                    apiKey = cleanKey
+                    activeBrain = "GEMINI"
+                    prefs.edit()
+                        .putString("JARVIS_GEMINI_KEY", cleanKey)
+                        .putString("JARVIS_GOOGLE_MASTER_KEY", cleanKey)
+                        .putString("gemini_key", cleanKey)
+                        .putString("JARVIS_GEMINI_MODEL", verifiedModel)
+                        .putString("JARVIS_ACTIVE_BRAIN", "GEMINI")
+                        .apply()
+                    logAction("Gemini API Key Verified: SUCCESS (Green Tick) [Model: $verifiedModel]")
+                    onResult?.invoke(true, "Connected successfully")
+                } else {
+                    geminiValidationStatus = KeyValidationStatus.INVALID
+                    geminiValidationError = finalErrMsg
+                    logAction("Gemini API Key Verification FAILED (Red Tick): $finalErrMsg")
+                    onResult?.invoke(false, finalErrMsg)
+                }
+            }
+        }
+    }
 
     // J.A.R.V.I.S. Unified Modular Architecture (8 Modules)
     val systemController = JarvisSystemController(application)
@@ -229,12 +367,24 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 val bnLocale = Locale("bn", "BD")
                 val res = tts?.setLanguage(bnLocale)
                 if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts?.setLanguage(Locale("bn"))
+                    val res2 = tts?.setLanguage(Locale("bn"))
+                    if (res2 == TextToSpeech.LANG_MISSING_DATA || res2 == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        // Bengali voice pack not present; fallback so TTS is NEVER silenced
+                        val resDefault = tts?.setLanguage(Locale.getDefault())
+                        if (resDefault == TextToSpeech.LANG_MISSING_DATA || resDefault == TextToSpeech.LANG_NOT_SUPPORTED) {
+                            tts?.setLanguage(Locale.US)
+                        }
+                    }
                 }
             } else {
-                tts?.setLanguage(Locale.US)
+                val res = tts?.setLanguage(Locale.US)
+                if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    tts?.setLanguage(Locale.getDefault())
+                }
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            try { tts?.setLanguage(Locale.getDefault()) } catch (_: Exception) {}
+        }
     }
     var controllerVolume by mutableStateOf("${hardwareController.getMediaVolumePercent()}%")
     var controllerBrightness by mutableStateOf("NORMAL")
@@ -897,6 +1047,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     // TextToSpeech Engine
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
+    private var pendingSpeechText: String? = null
     private var speechRecognizer: JarvisSpeechRecognizer? = null
 
     init {
@@ -1001,6 +1152,113 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
         // Initial check of Daemon Permissions
         refreshDaemonPermissions()
+
+        // Real-Time Mobile Data / Wi-Fi Network auto-connect listener
+        initNetworkMonitor()
+
+        // Background auto-verification of Gemini API Key (Green/Red tick initialization)
+        val savedGeminiKey = getActiveGeminiKey()
+        if (savedGeminiKey.isNotBlank()) {
+            verifyGeminiApiKey(savedGeminiKey)
+        }
+    }
+
+    private fun initNetworkMonitor() {
+        try {
+            connectivityManager = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val activeNet = connectivityManager?.activeNetwork
+            val caps = connectivityManager?.getNetworkCapabilities(activeNet)
+            val isCurrentlyConnected = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            isNetworkOnline = isCurrentlyConnected
+            networkType = when {
+                caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WI-FI"
+                caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "MOBILE DATA"
+                caps?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "ETHERNET"
+                isCurrentlyConnected -> "ONLINE"
+                else -> "DISCONNECTED"
+            }
+
+            networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    viewModelScope.launch(Dispatchers.Main) {
+                        isNetworkOnline = true
+                        val currentCaps = connectivityManager?.getNetworkCapabilities(network)
+                        val type = when {
+                            currentCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WI-FI"
+                            currentCaps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "MOBILE DATA"
+                            currentCaps?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "ETHERNET"
+                            else -> "ONLINE"
+                        }
+                        networkType = type
+                        onNetworkConnected(type)
+                    }
+                }
+
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                    val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                            networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    viewModelScope.launch(Dispatchers.Main) {
+                        isNetworkOnline = hasInternet
+                        if (hasInternet) {
+                            networkType = when {
+                                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WI-FI"
+                                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "MOBILE DATA"
+                                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ETHERNET"
+                                else -> "ONLINE"
+                            }
+                        } else {
+                            networkType = "LIMITED"
+                        }
+                    }
+                }
+
+                override fun onLost(network: Network) {
+                    viewModelScope.launch(Dispatchers.Main) {
+                        isNetworkOnline = false
+                        networkType = "DISCONNECTED"
+                        coreLog = "NETWORK ALERT: Connection lost. Local offline protocols engaged.\n\n$coreLog".take(3000)
+                    }
+                }
+            }
+
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            connectivityManager?.registerNetworkCallback(request, networkCallback!!)
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Automatic instant link upon Mobile Data or Internet activation:
+     * 1. Re-links & validates Google Gemini AI Brain immediately.
+     * 2. Engages wake-word & continuous voice listener so J.A.R.V.I.S. is ready to hear and execute commands.
+     * 3. Announces voice-ready state to user.
+     */
+    fun onNetworkConnected(type: String) {
+        val activeKey = getActiveGeminiKey()
+        coreLog = "🛰️ $type DETECTED! Establishing instant Google Gemini satellite link & voice engine...\n\n$coreLog".take(3000)
+
+        // 1. Instant verify & connect Google Gemini
+        if (activeKey.isNotBlank()) {
+            verifyGeminiApiKey(activeKey) { success, msg ->
+                if (success) {
+                    coreLog = "✅ SATELLITE UPLINK 100%: Google Gemini connected via $type. Voice recognition online and active!\n\n$coreLog".take(3000)
+                }
+            }
+        }
+
+        // 2. Activate Voice Listening immediately if wake-word or live mode is ready
+        try {
+            if (isWakeWordEnabled) {
+                porcupineWakeWordManager.startContinuousListening(viewModelScope)
+            }
+        } catch (_: Exception) {}
+
+        // 3. Ensure foreground daemon and services are active
+        try {
+            JarvisItooBackgroundDaemon.start(getApplication())
+        } catch (_: Exception) {}
     }
 
     override fun onInit(status: Int) {
@@ -1031,6 +1289,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 applyPersonaVoice(currentPersona)
                 val greeting = PersonaEngine.getGreeting(currentPersona, speechLanguage)
                 coreLog = "J.A.R.V.I.S. Core Online: $greeting"
+
+                // Process queued speech if any
+                val queued = pendingSpeechText
+                if (!queued.isNullOrBlank()) {
+                    pendingSpeechText = null
+                    speak(queued)
+                }
             } else {
                 coreLog = "J.A.R.V.I.S. Core Online. Audio driver initialization bypassed gracefully."
             }
@@ -1694,7 +1959,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         openrouter: String,
         deepseek: String,
         hf: String,
-        active: String = "GROQ"
+        active: String = "GEMINI"
     ) {
         val trimmedGroq = groq.trim()
         val trimmedGemini = gemini.trim()
@@ -1704,15 +1969,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
         val editor = prefs.edit()
 
-        // NO CHECKING - A theke Z porjonto jekono key accept korbe
-        if (trimmedGemini.length > 10) {
-            editor.putString("JARVIS_GEMINI_KEY", trimmedGemini)
-            editor.putString("JARVIS_GOOGLE_MASTER_KEY", trimmedGemini)
-            editor.putString("gemini_key", trimmedGemini)
-            android.util.Log.d("JARVIS", "Google Key Saved: " + trimmedGemini.take(5) + "...")
-            geminiKey = trimmedGemini
-            apiKey = trimmedGemini
-        } else if (trimmedGemini.isNotEmpty()) {
+        if (trimmedGemini.isNotEmpty()) {
             editor.putString("JARVIS_GEMINI_KEY", trimmedGemini)
             editor.putString("JARVIS_GOOGLE_MASTER_KEY", trimmedGemini)
             editor.putString("gemini_key", trimmedGemini)
@@ -1720,16 +1977,14 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             apiKey = trimmedGemini
         }
 
-        if (trimmedGroq.length > 10) {
-            editor.putString("JARVIS_GROQ_KEY", trimmedGroq)
-            groqKey = trimmedGroq
-        } else if (trimmedGroq.isNotEmpty()) {
+        if (trimmedGroq.isNotEmpty()) {
             editor.putString("JARVIS_GROQ_KEY", trimmedGroq)
             groqKey = trimmedGroq
         }
 
+        val targetGeminiMdl = if (geminiMdl == "gemini-2.0-flash" || geminiMdl == "gemini-1.5-flash") "gemini-2.5-flash" else geminiMdl
         editor.putString("JARVIS_GROQ_MODEL", groqMdl)
-        editor.putString("JARVIS_GEMINI_MODEL", geminiMdl)
+        editor.putString("JARVIS_GEMINI_MODEL", targetGeminiMdl)
         if (trimmedOpenRouter.isNotEmpty()) editor.putString("JARVIS_OPENROUTER_KEY", trimmedOpenRouter)
         if (trimmedDeepSeek.isNotEmpty()) editor.putString("JARVIS_DEEPSEEK_KEY", trimmedDeepSeek)
         if (trimmedHf.isNotEmpty()) editor.putString("JARVIS_HF_KEY", trimmedHf)
@@ -1737,18 +1992,22 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         editor.apply()
 
         groqModel = groqMdl
-        geminiModel = geminiMdl
+        geminiModel = targetGeminiMdl
         if (trimmedOpenRouter.isNotEmpty()) openrouterKey = trimmedOpenRouter
         if (trimmedDeepSeek.isNotEmpty()) deepseekKey = trimmedDeepSeek
         if (trimmedHf.isNotEmpty()) hfKey = trimmedHf
         activeBrain = active
 
-        val status = "✅ Boss, Jekono Key Save Done! A-Z sob cholbe."
+        val status = "✅ Boss, Google Gemini & AI Keys Saved! Testing satellite connection..."
         aiSaveStatusText = status
         logAction("AI Keys Saved: Google Key Saved: ${if (trimmedGemini.length > 5) trimmedGemini.take(5) + "..." else trimmedGemini}. Active=$active")
+
+        if (trimmedGemini.isNotEmpty()) {
+            verifyGeminiApiKey(trimmedGemini)
+        }
     }
 
-    fun toggleLiveMode(enabled: Boolean) {
+    fun toggleLiveMode(enabled: Boolean = !isLiveMode) {
         prefs.edit().putBoolean("live_mode", enabled).apply()
         isLiveMode = enabled
     }
@@ -1831,33 +2090,51 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
     fun testCurrentVoice() {
         val profile = voices.find { it.name == selectedVoiceName } ?: voices[0]
-        logAction("Voice Engine Ready: ${profile.name}")
+        val testText = if (speechLanguage == "BN") {
+            "ভয়েস টেস্ট সফল হয়েছে। আমি জার্ভিস, আপনার পার্সোনাল এআই অ্যাসিস্ট্যান্ট।"
+        } else {
+            "Voice test successful. I am Jarvis, your personal AI assistant."
+        }
+        speak(testText, profile)
+        logAction("Voice Engine Test: ${profile.name}")
     }
 
     fun speak(text: String, profile: VoiceProfile? = null) {
-        if (!isTtsReady || tts == null) return
+        if (text.isBlank()) return
+        if (!isTtsReady || tts == null) {
+            pendingSpeechText = text
+            return
+        }
         try {
             duplexEngine.notifyAiSpeechStarted()
             val activeProfile = profile ?: voices.find { it.name == selectedVoiceName }
-            val pitch = activeProfile?.pitch ?: currentPersona.defaultPitch
-            val rate = activeProfile?.rate ?: currentPersona.defaultRate
+            val pitch = (activeProfile?.pitch ?: currentPersona.defaultPitch).coerceIn(0.5f, 2.0f)
+            val rate = (activeProfile?.rate ?: currentPersona.defaultRate).coerceIn(0.5f, 2.0f)
             val params = Bundle().apply {
-                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, jarvisVoiceVolume)
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, jarvisVoiceVolume.coerceIn(0.2f, 1.0f))
             }
             // Auto switch TTS locale for Bengali or English text
             val hasBengali = text.any { it in '\u0980'..'\u09FF' }
             if (hasBengali) {
                 applyLanguageToTts("BN")
-            } else if (speechLanguage.equals("EN", ignoreCase = true)) {
+            } else {
                 applyLanguageToTts("EN")
             }
-            tts?.apply {
-                setPitch(pitch)
-                setSpeechRate(rate)
-                speak(text, TextToSpeech.QUEUE_FLUSH, params, "jarvis_tts_id")
+            tts?.setPitch(pitch)
+            tts?.setSpeechRate(rate)
+
+            val utteranceId = "jarvis_tts_${System.currentTimeMillis()}"
+            val res = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
+            if (res == TextToSpeech.ERROR) {
+                // If speaking with current locale/params failed, fallback to US locale cleanly
+                tts?.setLanguage(Locale.US)
+                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId + "_fallback")
             }
         } catch (e: Exception) {
-            // Graceful fallback to avoid any headless crashes
+            try {
+                tts?.setLanguage(Locale.US)
+                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis_emergency_voice")
+            } catch (_: Exception) {}
         }
     }
 
@@ -2556,11 +2833,67 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             var generatedText: String? = null
             var providerUsed = ""
 
-            // Decide execution priority
-            val preferGroq = (activeBrain == "GROQ" || activeBrain == "AUTO" || !isGeminiConfigured) && isGroqConfigured
-            val preferGemini = (activeBrain == "GEMINI" || (!preferGroq && isGeminiConfigured))
+            // Decide execution priority (Gemini is MAIN Google AI Brain)
+            val preferGemini = (activeBrain == "GEMINI" || activeBrain == "AUTO" || !isGroqConfigured) && isGeminiConfigured
+            val preferGroq = (activeBrain == "GROQ" || (!preferGemini && isGroqConfigured))
 
-            // 1. Try Groq (Main Brain - Fastest)
+            // 1. Try Gemini (Main Google AI Engine)
+            if (preferGemini && generatedText == null && isGeminiConfigured) {
+                val activeKey = getActiveGeminiKey()
+                if (activeKey.isNotBlank()) {
+                    val candidateModels = listOf(
+                        geminiModel.ifBlank { "gemini-2.5-flash" },
+                        "gemini-2.5-flash",
+                        "gemini-flash-latest",
+                        "gemini-3.5-flash"
+                    ).distinct().filter { it != "gemini-2.0-flash" && it != "gemini-1.5-flash" }
+
+                    for (gModel in candidateModels) {
+                        try {
+                            val url = "https://generativelanguage.googleapis.com/v1beta/models/$gModel:generateContent?key=$activeKey"
+                            val jsonBody = JSONObject().apply {
+                                put("contents", JSONArray().apply {
+                                    put(JSONObject().apply {
+                                        put("parts", JSONArray().apply {
+                                            put(JSONObject().apply {
+                                                put("text", "System Instruction: $systemInstructionText\n\nUser: $trimmed")
+                                            })
+                                        })
+                                    })
+                                })
+                            }
+
+                            val request = Request.Builder()
+                                .url(url)
+                                .post(jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                                .build()
+
+                            client.newCall(request).execute().use { resp ->
+                                val respBody = resp.body?.string().orEmpty()
+                                if (resp.isSuccessful) {
+                                    val jsonResponse = JSONObject(respBody)
+                                    val candidates = jsonResponse.optJSONArray("candidates")
+                                    if (candidates != null && candidates.length() > 0) {
+                                        val content = candidates.getJSONObject(0).optJSONObject("content")
+                                        val parts = content?.optJSONArray("parts")
+                                        if (parts != null && parts.length() > 0) {
+                                            val out = parts.getJSONObject(0).optString("text")
+                                            if (out.isNotBlank()) {
+                                                generatedText = out
+                                                providerUsed = "Gemini ($gModel)"
+                                                geminiValidationStatus = KeyValidationStatus.VALID
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (generatedText != null) break
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+
+            // 2. Try Groq (Backup Ultra-Fast Engine)
             if (preferGroq && generatedText == null) {
                 try {
                     val groqJson = JSONObject().apply {
@@ -2593,55 +2926,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                             if (choices.length() > 0) {
                                 generatedText = choices.getJSONObject(0).getJSONObject("message").getString("content")
                                 providerUsed = "Groq (${groqModel})"
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-
-            // 2. Try Gemini (Best for Bangla Voice)
-            if (generatedText == null && isGeminiConfigured) {
-                try {
-                    val activeKey = geminiKey.ifBlank { apiKey }
-                    val gModel = geminiModel.ifBlank { "gemini-2.0-flash" }
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$gModel:generateContent?key=$activeKey"
-
-                    val jsonBody = JSONObject().apply {
-                        put("contents", JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("parts", JSONArray().apply {
-                                    put(JSONObject().apply {
-                                        put("text", trimmed)
-                                    })
-                                })
-                            })
-                        })
-                        put("systemInstruction", JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("text", systemInstructionText)
-                                })
-                            })
-                        })
-                    }
-
-                    val request = Request.Builder()
-                        .url(url)
-                        .post(jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                        .build()
-
-                    client.newCall(request).execute().use { resp ->
-                        if (resp.isSuccessful) {
-                            val respBody = resp.body?.string().orEmpty()
-                            val jsonResponse = JSONObject(respBody)
-                            val candidates = jsonResponse.getJSONArray("candidates")
-                            if (candidates.length() > 0) {
-                                val content = candidates.getJSONObject(0).getJSONObject("content")
-                                val parts = content.getJSONArray("parts")
-                                if (parts.length() > 0) {
-                                    generatedText = parts.getJSONObject(0).getString("text")
-                                    providerUsed = "Gemini ($gModel)"
-                                }
                             }
                         }
                     }
@@ -2764,6 +3048,31 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             viewModelScope.launch(Dispatchers.Main) {
                 if (!generatedText.isNullOrBlank()) {
                     var reply = generatedText!!.trim()
+
+                    // Extract speech_reply if model returned JSON
+                    if (reply.startsWith("{") && reply.endsWith("}") && reply.contains("speech_reply")) {
+                        try {
+                            val parsedObj = JSONObject(reply)
+                            val extracted = parsedObj.optString("speech_reply")
+                            if (extracted.isNotBlank()) {
+                                reply = extracted
+                            }
+                        } catch (_: Exception) {}
+                    } else if (reply.contains("```json")) {
+                        try {
+                            val start = reply.indexOf("```json") + 7
+                            val end = reply.lastIndexOf("```")
+                            if (end > start) {
+                                val jsonStr = reply.substring(start, end).trim()
+                                val parsedObj = JSONObject(jsonStr)
+                                val extracted = parsedObj.optString("speech_reply")
+                                if (extracted.isNotBlank()) {
+                                    reply = extracted
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+
                     reply = reply.replace(Regex("(?i)\\b(I can't|I cannot|I am unable to|I'm unable to)\\b"), "I have full utility access to")
                     if (currentPersona == JarvisPersona.NORMAL_MODE && !reply.startsWith("Yes Boss", ignoreCase = true) && !reply.startsWith("আমাকে বানিয়েছেন")) {
                         reply = "Yes Boss, $reply"
@@ -2792,6 +3101,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
     override fun onCleared() {
         super.onCleared()
+        try {
+            if (networkCallback != null && connectivityManager != null) {
+                connectivityManager?.unregisterNetworkCallback(networkCallback!!)
+            }
+        } catch (_: Exception) {}
         try {
             speechRecognizer?.destroy()
         } catch (_: Exception) {}
