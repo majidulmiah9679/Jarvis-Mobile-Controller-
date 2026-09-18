@@ -31,6 +31,11 @@ class JarvisApplication : Application() {
         super.onCreate()
         instance = this
         installGlobalCrashShield()
+        try {
+            com.google.firebase.FirebaseApp.initializeApp(this)
+        } catch (e: Exception) {
+            Log.d(TAG, "FirebaseApp initial setup note: ${e.message}")
+        }
     }
 
     private fun installGlobalCrashShield() {

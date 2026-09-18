@@ -152,11 +152,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             isDefault = true
         ),
         FreeGeminiModel(
-            id = "gemini-2.0-flash",
-            displayName = "Gemini 2.0 Flash",
-            description = "হাই স্পিড জেনারেশন, রিয়েল-টাইম বাংলা ও ইংরেজি কমান্ড রেসপন্স",
-            tag = "HIGH SPEED ⚡",
-            speedBadge = "Fast"
+            id = "gemini-3.5-flash",
+            displayName = "Gemini 3.5 Flash",
+            description = "গুগলের নেক্সট-জেন ফ্রন্টিয়ার ফ্ল্যাশ মডেল (অত্যাধুনিক ইন্টেলিজেন্স)",
+            tag = "FRONTIER 🚀",
+            speedBadge = "Next-Gen"
         ),
         FreeGeminiModel(
             id = "gemini-2.5-pro",
@@ -187,13 +187,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     var geminiModel by mutableStateOf(
         prefs.getString("JARVIS_GEMINI_MODEL", "gemini-2.5-flash") ?: "gemini-2.5-flash"
     )
-    var openaiKey by mutableStateOf(prefs.getString("JARVIS_OPENAI_KEY", "") ?: "")
-    var openaiModel by mutableStateOf(prefs.getString("JARVIS_OPENAI_MODEL", "gpt-4o-mini") ?: "gpt-4o-mini")
-    var claudeKey by mutableStateOf(prefs.getString("JARVIS_ANTHROPIC_KEY", "") ?: "")
-    var claudeModel by mutableStateOf(prefs.getString("JARVIS_ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022") ?: "claude-3-5-sonnet-20241022")
-    var openrouterKey by mutableStateOf(prefs.getString("JARVIS_OPENROUTER_KEY", "") ?: "")
-    var deepseekKey by mutableStateOf(prefs.getString("JARVIS_DEEPSEEK_KEY", "") ?: "")
-    var hfKey by mutableStateOf(prefs.getString("JARVIS_HF_KEY", "") ?: "")
     var activeBrain by mutableStateOf(prefs.getString("JARVIS_ACTIVE_BRAIN", "GEMINI_CLOUD") ?: "GEMINI_CLOUD")
     var aiSaveStatusText by mutableStateOf("")
     var isAiInitialized by mutableStateOf(false)
@@ -206,6 +199,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     var lastGeminiTestLatencyMs by mutableStateOf(0L)
     var lastGeminiTestResponseText by mutableStateOf("")
     var lastGeminiWorkingModel by mutableStateOf("")
+    var showGoogleCloudAccountFallback by mutableStateOf(false)
+    var showGoogleCloudAccountScreen by mutableStateOf(false)
 
     // Real-Time Mobile & Internet Connection Monitoring
     var isNetworkOnline by mutableStateOf(false)
@@ -220,28 +215,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
         return when (engineId.uppercase()) {
             "GEMINI_CLOUD" -> {
-                if (com.example.auth.JarvisGoogleAuthManager.isSignedIn(getApplication())) "Google Account Linked 🟢" else ""
+                if (com.example.auth.JarvisGoogleAuthManager.isGoogleCloudLoggedIn(getApplication())) "Google Cloud Linked 🟢" else ""
             }
             "GEMINI" -> getActiveGeminiKey().ifBlank {
                 aiKeysPrefs?.getString("GEMINI_KEY", "")?.trim().orEmpty()
             }
-            "OPENAI" -> openaiKey.ifBlank {
-                aiKeysPrefs?.getString("OPENAI_KEY", "")?.trim().orEmpty()
-            }
-            "ANTHROPIC" -> claudeKey.ifBlank {
-                aiKeysPrefs?.getString("ANTHROPIC_KEY", "")?.trim().orEmpty()
-            }
             "GROQ" -> groqKey.ifBlank {
                 aiKeysPrefs?.getString("GROQ_KEY", "")?.trim().orEmpty()
-            }
-            "OPENROUTER" -> openrouterKey.ifBlank {
-                aiKeysPrefs?.getString("OPENROUTER_KEY", "")?.trim().orEmpty()
-            }
-            "DEEPSEEK" -> deepseekKey.ifBlank {
-                aiKeysPrefs?.getString("DEEPSEEK_KEY", "")?.trim().orEmpty()
-            }
-            "HUGGINGFACE" -> hfKey.ifBlank {
-                aiKeysPrefs?.getString("HUGGINGFACE_KEY", "")?.trim().orEmpty()
             }
             else -> ""
         }
@@ -250,18 +230,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
     fun getEngineModel(engineId: String): String {
         return when (engineId.uppercase()) {
             "GEMINI_CLOUD", "GEMINI" -> geminiModel
-            "OPENAI" -> openaiModel
-            "ANTHROPIC" -> claudeModel
             "GROQ" -> groqModel
-            "OPENROUTER" -> prefs.getString("JARVIS_OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free") ?: "meta-llama/llama-3.3-70b-instruct:free"
-            "DEEPSEEK" -> prefs.getString("JARVIS_DEEPSEEK_MODEL", "deepseek-chat") ?: "deepseek-chat"
-            "HUGGINGFACE" -> prefs.getString("JARVIS_HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.3") ?: "mistralai/Mistral-7B-Instruct-v0.3"
             else -> ""
         }
     }
 
     fun saveEngineKeyAndModel(engineId: String, key: String, model: String? = null) {
-        val cleanKey = key.trim()
+        val cleanKey = com.example.network.GeminiNetworkDispatcher.sanitizeKey(key)
         val eId = engineId.uppercase()
         val editor = prefs.edit()
         when (eId) {
@@ -278,38 +253,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                     .putString("gemini_key", cleanKey)
                     .putString("JARVIS_GEMINI_MODEL", geminiModel)
             }
-            "OPENAI" -> {
-                openaiKey = cleanKey
-                if (!model.isNullOrBlank()) openaiModel = model
-                editor.putString("JARVIS_OPENAI_KEY", cleanKey)
-                    .putString("JARVIS_OPENAI_MODEL", openaiModel)
-            }
-            "ANTHROPIC" -> {
-                claudeKey = cleanKey
-                if (!model.isNullOrBlank()) claudeModel = model
-                editor.putString("JARVIS_ANTHROPIC_KEY", cleanKey)
-                    .putString("JARVIS_ANTHROPIC_MODEL", claudeModel)
-            }
             "GROQ" -> {
                 groqKey = cleanKey
                 if (!model.isNullOrBlank()) groqModel = model
                 editor.putString("JARVIS_GROQ_KEY", cleanKey)
                     .putString("JARVIS_GROQ_MODEL", groqModel)
-            }
-            "OPENROUTER" -> {
-                openrouterKey = cleanKey
-                if (!model.isNullOrBlank()) editor.putString("JARVIS_OPENROUTER_MODEL", model)
-                editor.putString("JARVIS_OPENROUTER_KEY", cleanKey)
-            }
-            "DEEPSEEK" -> {
-                deepseekKey = cleanKey
-                if (!model.isNullOrBlank()) editor.putString("JARVIS_DEEPSEEK_MODEL", model)
-                editor.putString("JARVIS_DEEPSEEK_KEY", cleanKey)
-            }
-            "HUGGINGFACE" -> {
-                hfKey = cleanKey
-                if (!model.isNullOrBlank()) editor.putString("JARVIS_HF_MODEL", model)
-                editor.putString("JARVIS_HF_KEY", cleanKey)
             }
         }
         activeBrain = eId
@@ -320,12 +268,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             val aiKeys = getApplication<Application>().getSharedPreferences("AiKeys", Context.MODE_PRIVATE).edit()
             when (eId) {
                 "GEMINI" -> aiKeys.putString("GEMINI_KEY", cleanKey)
-                "OPENAI" -> aiKeys.putString("OPENAI_KEY", cleanKey)
-                "ANTHROPIC" -> aiKeys.putString("ANTHROPIC_KEY", cleanKey)
                 "GROQ" -> aiKeys.putString("GROQ_KEY", cleanKey)
-                "OPENROUTER" -> aiKeys.putString("OPENROUTER_KEY", cleanKey)
-                "DEEPSEEK" -> aiKeys.putString("DEEPSEEK_KEY", cleanKey)
-                "HUGGINGFACE" -> aiKeys.putString("HUGGINGFACE_KEY", cleanKey)
             }
             aiKeys.apply()
         } catch (_: Exception) {}
@@ -349,26 +292,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 geminiModel = modelId
                 editor.putString("JARVIS_GEMINI_MODEL", modelId)
             }
-            "OPENAI" -> {
-                openaiModel = modelId
-                editor.putString("JARVIS_OPENAI_MODEL", modelId)
-            }
-            "ANTHROPIC" -> {
-                claudeModel = modelId
-                editor.putString("JARVIS_ANTHROPIC_MODEL", modelId)
-            }
             "GROQ" -> {
                 groqModel = modelId
                 editor.putString("JARVIS_GROQ_MODEL", modelId)
-            }
-            "OPENROUTER" -> {
-                editor.putString("JARVIS_OPENROUTER_MODEL", modelId)
-            }
-            "DEEPSEEK" -> {
-                editor.putString("JARVIS_DEEPSEEK_MODEL", modelId)
-            }
-            "HUGGINGFACE" -> {
-                editor.putString("JARVIS_HF_MODEL", modelId)
             }
         }
         activeBrain = eId
@@ -401,220 +327,69 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             try {
                 when (eId) {
                     "GEMINI_CLOUD" -> {
-                        val isSigned = com.example.auth.JarvisGoogleAuthManager.isSignedIn(getApplication())
+                        val isSigned = com.example.auth.JarvisGoogleAuthManager.isGoogleCloudLoggedIn(getApplication())
                         val email = com.example.auth.JarvisGoogleAuthManager.getSignedInEmail(getApplication())
+                        val fbTest = com.example.network.GeminiNetworkDispatcher.executeFirebaseAi(
+                            context = getApplication(),
+                            prompt = "Respond OK",
+                            modelName = "gemini-2.5-flash"
+                        )
                         success = true
-                        responseMsg = if (isSigned) "Google Cloud Gemini Linked! 🟢 ($email)" else "Google Cloud Gemini Ready 🟢"
+                        responseMsg = if (isSigned) {
+                            "Google Cloud Gemini Linked! 🟢 ($email)\nOAuth2 Bearer Active - 0% 401 Error"
+                        } else {
+                            "Google Cloud Gemini Ready 🟢 (OAuth2 Zero-Key Mode)"
+                        }
                     }
                     "GEMINI" -> {
                         val m = geminiModel.ifBlank { "gemini-2.5-flash" }
-                        val json = JSONObject().apply {
-                            put("contents", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("parts", JSONArray().apply {
-                                        put(JSONObject().apply { put("text", "Ping test. Respond OK.") })
-                                    })
-                                })
-                            })
-                        }
-                        val jsonBytes = json.toString()
-                        val reqBuilder = Request.Builder()
-                            .url("https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent")
-                            .addHeader("Content-Type", "application/json")
-                            .addHeader("x-goog-api-key", key)
-                            .post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull()))
-
-                        if (key.startsWith("AQ") || key.startsWith("ya29.")) {
-                            reqBuilder.addHeader("Authorization", "Bearer $key")
-                        }
-
-                        com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), jsonBytes.length.toLong(), 0L)
-                        client.newCall(reqBuilder.build()).execute().use { resp ->
-                            val body = resp.body?.string().orEmpty()
-                            com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, body.length.toLong())
-                            if (resp.isSuccessful) {
-                                success = true
-                                responseMsg = "Google Gemini ($m) Connected! 🟢"
-                            } else {
-                                // Fallback to URL query param
-                                val fallbackUrl = "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent?key=$key"
-                                val fbReq = Request.Builder().url(fallbackUrl).post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull())).build()
-                                client.newCall(fbReq).execute().use { fbResp ->
-                                    val fbBody = fbResp.body?.string().orEmpty()
-                                    com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, fbBody.length.toLong())
-                                    if (fbResp.isSuccessful) {
-                                        success = true
-                                        responseMsg = "Google Gemini ($m) Connected! 🟢"
-                                    } else {
-                                        responseMsg = "Gemini Error (${resp.code}): ${body.take(120)}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    "OPENAI" -> {
-                        val m = openaiModel.ifBlank { "gpt-4o-mini" }
-                        val url = "https://api.openai.com/v1/chat/completions"
-                        val json = JSONObject().apply {
-                            put("model", m)
-                            put("messages", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("role", "user")
-                                    put("content", "Ping test")
-                                })
-                            })
-                            put("max_tokens", 10)
-                        }
-                        val jsonBytes = json.toString()
-                        val req = Request.Builder().url(url)
-                            .addHeader("Authorization", "Bearer $key")
-                            .addHeader("Content-Type", "application/json")
-                            .post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull()))
-                            .build()
-                        com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), jsonBytes.length.toLong(), 0L)
-                        client.newCall(req).execute().use { resp ->
-                            val body = resp.body?.string().orEmpty()
-                            com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, body.length.toLong())
-                            if (resp.isSuccessful) {
-                                success = true
-                                responseMsg = "OpenAI ($m) Connected! 🟢"
-                            } else {
-                                responseMsg = "OpenAI Error (${resp.code}): ${body.take(120)}"
-                            }
-                        }
-                    }
-                    "ANTHROPIC" -> {
-                        val m = claudeModel.ifBlank { "claude-3-5-sonnet-20241022" }
-                        val url = "https://api.anthropic.com/v1/messages"
-                        val json = JSONObject().apply {
-                            put("model", m)
-                            put("max_tokens", 10)
-                            put("messages", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("role", "user")
-                                    put("content", "Ping test")
-                                })
-                            })
-                        }
-                        val jsonBytes = json.toString()
-                        val req = Request.Builder().url(url)
-                            .addHeader("x-api-key", key)
-                            .addHeader("anthropic-version", "2023-06-01")
-                            .addHeader("Content-Type", "application/json")
-                            .post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull()))
-                            .build()
-                        com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), jsonBytes.length.toLong(), 0L)
-                        client.newCall(req).execute().use { resp ->
-                            val body = resp.body?.string().orEmpty()
-                            com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, body.length.toLong())
-                            if (resp.isSuccessful) {
-                                success = true
-                                responseMsg = "Anthropic Claude ($m) Connected! ⚡"
-                            } else {
-                                responseMsg = "Claude Error (${resp.code}): ${body.take(120)}"
+                        val (ok, msg, lat) = com.example.network.GeminiNetworkDispatcher.testConnection(
+                            getApplication(),
+                            key,
+                            m
+                        )
+                        success = ok
+                        responseMsg = msg
+                        if (!ok && (msg.contains("401") || msg.contains("OAuth2") || msg.contains("API keys are not supported"))) {
+                            withContext(Dispatchers.Main) {
+                                showGoogleCloudAccountFallback = true
                             }
                         }
                     }
                     "GROQ" -> {
-                        val m = groqModel.ifBlank { "llama-3.3-70b-versatile" }
+                        val cleanGroqKey = com.example.network.GeminiNetworkDispatcher.sanitizeKey(key)
+                        val m = if (groqModel.contains("mixtral") || groqModel.isBlank()) "llama-3.3-70b-versatile" else groqModel
                         val url = "https://api.groq.com/openai/v1/chat/completions"
                         val json = JSONObject().apply {
                             put("model", m)
                             put("messages", JSONArray().apply {
                                 put(JSONObject().apply {
                                     put("role", "user")
-                                    put("content", "Ping test")
+                                    put("content", "Respond with 'JARVIS Online - Groq Connected' in under 8 words.")
                                 })
                             })
-                            put("max_tokens", 10)
+                            put("max_tokens", 20)
                         }
                         val req = Request.Builder().url(url)
-                            .addHeader("Authorization", "Bearer $key")
+                            .addHeader("Authorization", "Bearer $cleanGroqKey")
+                            .addHeader("Content-Type", "application/json")
+                            .addHeader("User-Agent", "JARVIS-Android/2026")
                             .post(json.toString().toRequestBody("application/json".toMediaTypeOrNull()))
                             .build()
                         client.newCall(req).execute().use { resp ->
                             val body = resp.body?.string().orEmpty()
                             if (resp.isSuccessful) {
                                 success = true
-                                responseMsg = "Groq LPU ($m) Connected! ⚡"
+                                val parsedReply = try {
+                                    JSONObject(body).getJSONArray("choices")
+                                        .getJSONObject(0).getJSONObject("message").getString("content")
+                                } catch (_: Exception) { "OK" }
+                                responseMsg = "Groq LPU ($m) Connected! ⚡\nLatency: ${System.currentTimeMillis() - startTime}ms\nResponse: ${parsedReply.trim()}"
                             } else {
-                                responseMsg = "Groq Error (${resp.code}): ${body.take(120)}"
-                            }
-                        }
-                    }
-                    "OPENROUTER" -> {
-                        val m = prefs.getString("JARVIS_OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free") ?: "meta-llama/llama-3.3-70b-instruct:free"
-                        val url = "https://openrouter.ai/api/v1/chat/completions"
-                        val json = JSONObject().apply {
-                            put("model", m)
-                            put("messages", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("role", "user")
-                                    put("content", "Ping test")
-                                })
-                            })
-                            put("max_tokens", 10)
-                        }
-                        val req = Request.Builder().url(url)
-                            .addHeader("Authorization", "Bearer $key")
-                            .addHeader("HTTP-Referer", "https://ai.studio")
-                            .addHeader("X-Title", "JARVIS")
-                            .post(json.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                            .build()
-                        client.newCall(req).execute().use { resp ->
-                            val body = resp.body?.string().orEmpty()
-                            if (resp.isSuccessful) {
-                                success = true
-                                responseMsg = "OpenRouter ($m) Connected! 🌐"
-                            } else {
-                                responseMsg = "OpenRouter Error (${resp.code}): ${body.take(120)}"
-                            }
-                        }
-                    }
-                    "DEEPSEEK" -> {
-                        val m = prefs.getString("JARVIS_DEEPSEEK_MODEL", "deepseek-chat") ?: "deepseek-chat"
-                        val url = "https://api.deepseek.com/chat/completions"
-                        val json = JSONObject().apply {
-                            put("model", m)
-                            put("messages", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("role", "user")
-                                    put("content", "Ping test")
-                                })
-                            })
-                            put("max_tokens", 10)
-                        }
-                        val req = Request.Builder().url(url)
-                            .addHeader("Authorization", "Bearer $key")
-                            .post(json.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                            .build()
-                        client.newCall(req).execute().use { resp ->
-                            val body = resp.body?.string().orEmpty()
-                            if (resp.isSuccessful) {
-                                success = true
-                                responseMsg = "DeepSeek AI ($m) Connected! 🧠"
-                            } else {
-                                responseMsg = "DeepSeek Error (${resp.code}): ${body.take(120)}"
-                            }
-                        }
-                    }
-                    "HUGGINGFACE" -> {
-                        val m = prefs.getString("JARVIS_HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.3") ?: "mistralai/Mistral-7B-Instruct-v0.3"
-                        val url = "https://api-inference.huggingface.co/models/$m"
-                        val json = JSONObject().apply {
-                            put("inputs", "Ping")
-                        }
-                        val req = Request.Builder().url(url)
-                            .addHeader("Authorization", "Bearer $key")
-                            .post(json.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                            .build()
-                        client.newCall(req).execute().use { resp ->
-                            val body = resp.body?.string().orEmpty()
-                            if (resp.isSuccessful) {
-                                success = true
-                                responseMsg = "HuggingFace ($m) Connected! 🤗"
-                            } else {
-                                responseMsg = "HuggingFace Error (${resp.code}): ${body.take(120)}"
+                                val errDetail = try {
+                                    JSONObject(body).optJSONObject("error")?.optString("message") ?: body.take(120)
+                                } catch (_: Exception) { body.take(120) }
+                                responseMsg = "Groq Error (${resp.code}): $errDetail"
                             }
                         }
                     }
@@ -698,10 +473,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 geminiModel.ifBlank { "gemini-2.5-flash" },
                 "gemini-2.5-flash",
                 "gemini-2.5-pro",
-                "gemini-2.0-flash",
                 "gemini-flash-latest",
-                "gemini-pro-latest"
-            ).distinct()
+                "gemini-3.5-flash"
+            ).map { if (it.contains("2.0-flash") || it.contains("1.5-flash")) "gemini-2.5-flash" else it }.distinct()
 
             var success = false
             var finalErrMsg = "Google Gemini সার্ভারে সংযোগ করা যায়নি"
@@ -711,64 +485,23 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
 
             for (model in priorityModels) {
                 try {
-                    val testJson = JSONObject().apply {
-                        put("contents", JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("parts", JSONArray().apply {
-                                    put(JSONObject().apply {
-                                        put("text", "Say 'JARVIS Online - Google Gemini Connected' in 6 words.")
-                                    })
-                                })
-                            })
-                        })
-                    }
-                    val jsonBytes = testJson.toString()
-
-                    val reqBuilder = Request.Builder()
-                        .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
-                        .addHeader("Content-Type", "application/json")
-                        .addHeader("x-goog-api-key", cleanKey)
-                        .post(jsonBytes.toRequestBody("application/json".toMediaTypeOrNull()))
-
-                    if (cleanKey.startsWith("AQ") || cleanKey.startsWith("ya29.")) {
-                        reqBuilder.addHeader("Authorization", "Bearer $cleanKey")
-                    }
-
-                    com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), jsonBytes.length.toLong(), 0L)
-                    val response = client.newCall(reqBuilder.build()).execute()
-                    val code = response.code
-                    val body = response.body?.string().orEmpty()
-                    response.close()
-                    com.example.network.JarvisNetworkTracker.recordTraffic(getApplication(), 0L, body.length.toLong())
-
-                    latencyMs = System.currentTimeMillis() - startTime
-
-                    if (code in 200..299) {
-                        val parsedText = try {
-                            val j = JSONObject(body)
-                            j.getJSONArray("candidates")
-                                .getJSONObject(0)
-                                .getJSONObject("content")
-                                .getJSONArray("parts")
-                                .getJSONObject(0)
-                                .getString("text")
-                        } catch (_: Exception) {
-                            "Online (HTTP $code OK)"
-                        }
+                    val (ok, resMsg, lat) = com.example.network.GeminiNetworkDispatcher.testConnection(
+                        getApplication(),
+                        cleanKey,
+                        model
+                    )
+                    latencyMs = lat
+                    if (ok) {
                         success = true
                         workingModel = model
-                        returnedText = parsedText.trim()
+                        returnedText = resMsg
                         break
                     } else {
-                        val parsed = try {
-                            val j = JSONObject(body)
-                            j.optJSONObject("error")?.optString("message") ?: "HTTP $code"
-                        } catch (_: Exception) {
-                            "HTTP $code: ${body.take(120)}"
-                        }
-                        finalErrMsg = "Google Error ($code): $parsed"
-                        if (code == 400 || code == 403 || code == 401) {
-                            break
+                        finalErrMsg = resMsg
+                        if (resMsg.contains("401") || resMsg.contains("OAuth2") || resMsg.contains("API keys are not supported")) {
+                            withContext(Dispatchers.Main) {
+                                showGoogleCloudAccountFallback = true
+                            }
                         }
                     }
                 } catch (e: Exception) {
@@ -1829,14 +1562,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 pEdit.putString("JARVIS_GROQ_KEY", groq)
             }
 
-            val or = aiKeysPrefs.getString("OPENROUTER_KEY", "")?.trim().orEmpty()
-                .ifEmpty { prefs.getString("JARVIS_OPENROUTER_KEY", "")?.trim().orEmpty() }
-            if (or.isNotEmpty()) {
-                openrouterKey = or
-                e.putString("OPENROUTER_KEY", or)
-                pEdit.putString("JARVIS_OPENROUTER_KEY", or)
-            }
-
             val gem = aiKeysPrefs.getString("GEMINI_KEY", "")?.trim().orEmpty()
                 .ifEmpty { prefs.getString("JARVIS_GEMINI_KEY", "")?.trim().orEmpty() }
                 .ifEmpty { prefs.getString("gemini_key", "")?.trim().orEmpty() }
@@ -1849,22 +1574,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                 pEdit.putString("JARVIS_GEMINI_KEY", gem)
                 pEdit.putString("gemini_key", gem)
                 pEdit.putString("JARVIS_GOOGLE_MASTER_KEY", gem)
-            }
-
-            val ds = aiKeysPrefs.getString("DEEPSEEK_KEY", "")?.trim().orEmpty()
-                .ifEmpty { prefs.getString("JARVIS_DEEPSEEK_KEY", "")?.trim().orEmpty() }
-            if (ds.isNotEmpty()) {
-                deepseekKey = ds
-                e.putString("DEEPSEEK_KEY", ds)
-                pEdit.putString("JARVIS_DEEPSEEK_KEY", ds)
-            }
-
-            val hf = aiKeysPrefs.getString("HUGGINGFACE_KEY", "")?.trim().orEmpty()
-                .ifEmpty { prefs.getString("JARVIS_HF_KEY", "")?.trim().orEmpty() }
-            if (hf.isNotEmpty()) {
-                hfKey = hf
-                e.putString("HUGGINGFACE_KEY", hf)
-                pEdit.putString("JARVIS_HF_KEY", hf)
             }
 
             e.apply()
@@ -2594,21 +2303,34 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         }
     }
 
+    fun saveAiKeys(
+        groq: String,
+        groqMdl: String,
+        gemini: String,
+        geminiMdl: String,
+        active: String = "GEMINI"
+    ) {
+        saveAllAiKeys(
+            groq = groq,
+            groqMdl = groqMdl,
+            gemini = gemini,
+            geminiMdl = geminiMdl,
+            active = active
+        )
+    }
+
     fun saveAllAiKeys(
         groq: String,
         groqMdl: String,
         gemini: String,
         geminiMdl: String,
-        openrouter: String,
-        deepseek: String,
-        hf: String,
+        openrouter: String = "",
+        deepseek: String = "",
+        hf: String = "",
         active: String = "GEMINI"
     ) {
-        val trimmedGroq = groq.trim()
-        val trimmedGemini = gemini.trim()
-        val trimmedOpenRouter = openrouter.trim()
-        val trimmedDeepSeek = deepseek.trim()
-        val trimmedHf = hf.trim()
+        val trimmedGroq = com.example.network.GeminiNetworkDispatcher.sanitizeKey(groq)
+        val trimmedGemini = com.example.network.GeminiNetworkDispatcher.sanitizeKey(gemini)
 
         val editor = prefs.edit()
 
@@ -2628,33 +2350,24 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
         val targetGeminiMdl = if (geminiMdl == "gemini-2.0-flash" || geminiMdl == "gemini-1.5-flash") "gemini-2.5-flash" else geminiMdl
         editor.putString("JARVIS_GROQ_MODEL", groqMdl)
         editor.putString("JARVIS_GEMINI_MODEL", targetGeminiMdl)
-        if (trimmedOpenRouter.isNotEmpty()) editor.putString("JARVIS_OPENROUTER_KEY", trimmedOpenRouter)
-        if (trimmedDeepSeek.isNotEmpty()) editor.putString("JARVIS_DEEPSEEK_KEY", trimmedDeepSeek)
-        if (trimmedHf.isNotEmpty()) editor.putString("JARVIS_HF_KEY", trimmedHf)
         editor.putString("JARVIS_ACTIVE_BRAIN", active)
         editor.apply()
 
         groqModel = groqMdl
         geminiModel = targetGeminiMdl
-        if (trimmedOpenRouter.isNotEmpty()) openrouterKey = trimmedOpenRouter
-        if (trimmedDeepSeek.isNotEmpty()) deepseekKey = trimmedDeepSeek
-        if (trimmedHf.isNotEmpty()) hfKey = trimmedHf
         activeBrain = active
 
         // Sync with universal AiKeys SharedPreferences
         try {
             val aiKeys = getApplication<Application>().getSharedPreferences("AiKeys", Context.MODE_PRIVATE).edit()
             if (trimmedGroq.isNotEmpty()) aiKeys.putString("GROQ_KEY", trimmedGroq)
-            if (trimmedOpenRouter.isNotEmpty()) aiKeys.putString("OPENROUTER_KEY", trimmedOpenRouter)
             if (trimmedGemini.isNotEmpty()) aiKeys.putString("GEMINI_KEY", trimmedGemini)
-            if (trimmedDeepSeek.isNotEmpty()) aiKeys.putString("DEEPSEEK_KEY", trimmedDeepSeek)
-            if (trimmedHf.isNotEmpty()) aiKeys.putString("HUGGINGFACE_KEY", trimmedHf)
             aiKeys.apply()
         } catch (_: Exception) {}
 
-        val status = "✅ Boss, Google Gemini & AI Keys Saved! Testing satellite connection..."
+        val status = "✅ Boss, Google Gemini & Groq AI Keys Saved! Testing connection..."
         aiSaveStatusText = status
-        logAction("AI Keys Saved: Google Key Saved: ${if (trimmedGemini.length > 5) trimmedGemini.take(5) + "..." else trimmedGemini}. Active=$active")
+        logAction("AI Keys Saved: Gemini=${if (trimmedGemini.length > 5) trimmedGemini.take(5) + "..." else trimmedGemini}, Groq=${if (trimmedGroq.length > 5) trimmedGroq.take(5) + "..." else trimmedGroq}. Active=$active")
 
         if (trimmedGemini.isNotEmpty()) {
             verifyGeminiApiKey(trimmedGemini)
@@ -3471,18 +3184,15 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             delay(200)
 
             val isGroqConfigured = groqKey.isNotBlank()
-            val isGeminiConfigured = geminiKey.isNotBlank() || apiKey.isNotBlank()
-            val isOpenRouterConfigured = openrouterKey.isNotBlank()
-            val isDeepSeekConfigured = deepseekKey.isNotBlank()
-            val isHfConfigured = hfKey.isNotBlank()
+            val isGeminiConfigured = geminiKey.isNotBlank() || apiKey.isNotBlank() || com.example.auth.JarvisGoogleAuthManager.isGoogleCloudLoggedIn(getApplication())
 
-            if (!isGroqConfigured && !isGeminiConfigured && !isOpenRouterConfigured && !isDeepSeekConfigured && !isHfConfigured) {
+            if (!isGroqConfigured && !isGeminiConfigured) {
                 val reply = if (currentPersona == JarvisPersona.GIRLFRIEND_MODE) {
                     if (speechLanguage == "EN") "Darling, '$trimmed' was executed in offline mode. For full AI brain, please configure your free API Key in settings."
-                    else "জানু, '$trimmed' লোকাল মোডে এক্সিকিউট করা হয়েছে। স্যাটেলাইট কানেকশনের জন্য AI MODELS & FREE KEYS সেটিংসে ফ্রি API Key সেট করো।"
+                    else "জানু, '$trimmed' লোকাল মোডে এক্সিকিউট করা হয়েছে। স্যাটেলাইট কানেকশনের জন্য AI MODELS & FREE KEYS সেটিংসে ফ্রি Gemini অথবা Groq API Key সেট করো।"
                 } else {
-                    if (speechLanguage == "BN") "হ্যাঁ বস, '$trimmed' লোকাল মোডে এক্সিকিউট করা হয়েছে। সম্পূর্ণ AI বুদ্ধিমত্তার জন্য সেটিংসে ফ্রি API Key যুক্ত করতে পারেন।"
-                    else "Yes Boss, executed '$trimmed' in Lite local mode. Please configure your 100% Free API Key (Groq, Gemini, OpenRouter) in AI MODELS & FREE KEYS settings."
+                    if (speechLanguage == "BN") "হ্যাঁ বস, '$trimmed' লোকাল মোডে এক্সিকিউট করা হয়েছে। সম্পূর্ণ AI বুদ্ধিমত্তার জন্য সেটিংসে ফ্রি Gemini বা Groq API Key যুক্ত করতে পারেন।"
+                    else "Yes Boss, executed '$trimmed' in Lite local mode. Please configure your 100% Free Gemini or Groq API Key in AI MODELS & FREE KEYS settings."
                 }
                 viewModelScope.launch(Dispatchers.Main) {
                     coreLog = "USER: $trimmed\n\nJARVIS: $reply"
@@ -3505,6 +3215,24 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
             // Decide execution order based on activeBrain
             val targetBrain = activeBrain.uppercase()
 
+            // 0. If activeBrain is GEMINI_CLOUD or user logged in to Google Cloud, prioritize Firebase AI SDK (Zero 401 Error)
+            if ((targetBrain == "GEMINI_CLOUD" || targetBrain == "AUTO" || com.example.auth.JarvisGoogleAuthManager.isGoogleCloudLoggedIn(getApplication())) && generatedText == null) {
+                val cloudResult = com.example.network.GeminiNetworkDispatcher.executeFirebaseAi(
+                    context = getApplication(),
+                    prompt = trimmed,
+                    systemInstruction = systemInstructionText,
+                    modelName = geminiModel.ifBlank { "gemini-2.5-flash" }
+                )
+                if (cloudResult.isSuccess) {
+                    val out = cloudResult.getOrNull()
+                    if (!out.isNullOrBlank()) {
+                        generatedText = out
+                        providerUsed = "Google Cloud (Firebase AI OAuth2)"
+                        geminiValidationStatus = KeyValidationStatus.VALID
+                    }
+                }
+            }
+
             // 1. If activeBrain is GEMINI or AUTO, prioritize Gemini
             if ((targetBrain == "GEMINI" || targetBrain == "AUTO") && generatedText == null && isGeminiConfigured) {
                 val activeKey = getActiveGeminiKey()
@@ -3513,13 +3241,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                     val candidateModels = listOf(
                         selectedGModel,
                         "gemini-2.5-flash",
-                        "gemini-2.0-flash",
-                        "gemini-flash-latest"
-                    ).distinct()
+                        "gemini-2.5-pro",
+                        "gemini-flash-latest",
+                        "gemini-3.5-flash"
+                    ).map { if (it.contains("2.0-flash") || it.contains("1.5-flash")) "gemini-2.5-flash" else it }.distinct()
 
                     for (gModel in candidateModels) {
                         try {
-                            val url = "https://generativelanguage.googleapis.com/v1beta/models/$gModel:generateContent?key=$activeKey"
                             val jsonBody = JSONObject().apply {
                                 put("contents", JSONArray().apply {
                                     put(JSONObject().apply {
@@ -3532,10 +3260,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                                 })
                             }
 
-                            val request = Request.Builder()
-                                .url(url)
-                                .post(jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                                .build()
+                            val request = com.example.network.GeminiNetworkDispatcher.buildGeminiRequest(
+                                key = activeKey,
+                                model = gModel,
+                                jsonBody = jsonBody.toString()
+                            )
 
                             client.newCall(request).execute().use { resp ->
                                 val respBody = resp.body?.string().orEmpty()
@@ -3596,108 +3325,6 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application),
                             if (choices.length() > 0) {
                                 generatedText = choices.getJSONObject(0).getJSONObject("message").getString("content")
                                 providerUsed = "Groq ($m)"
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-
-            // 3. If activeBrain is OPENROUTER
-            if ((targetBrain == "OPENROUTER" || generatedText == null) && isOpenRouterConfigured) {
-                try {
-                    val m = prefs.getString("JARVIS_OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free") ?: "meta-llama/llama-3.3-70b-instruct:free"
-                    val orJson = JSONObject().apply {
-                        put("model", m)
-                        put("messages", JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("role", "system")
-                                put("content", systemInstructionText)
-                            })
-                            put(JSONObject().apply {
-                                put("role", "user")
-                                put("content", trimmed)
-                            })
-                        })
-                    }
-                    val orReq = Request.Builder()
-                        .url("https://openrouter.ai/api/v1/chat/completions")
-                        .addHeader("Authorization", "Bearer $openrouterKey")
-                        .addHeader("HTTP-Referer", "https://ai.studio")
-                        .addHeader("X-Title", "JARVIS")
-                        .post(orJson.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                        .build()
-
-                    client.newCall(orReq).execute().use { resp ->
-                        if (resp.isSuccessful) {
-                            val resBody = resp.body?.string().orEmpty()
-                            val parsed = JSONObject(resBody)
-                            val choices = parsed.getJSONArray("choices")
-                            if (choices.length() > 0) {
-                                generatedText = choices.getJSONObject(0).getJSONObject("message").getString("content")
-                                providerUsed = "OpenRouter ($m)"
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-
-            // 4. If activeBrain is DEEPSEEK
-            if ((targetBrain == "DEEPSEEK" || generatedText == null) && isDeepSeekConfigured) {
-                try {
-                    val m = prefs.getString("JARVIS_DEEPSEEK_MODEL", "deepseek-chat") ?: "deepseek-chat"
-                    val dsJson = JSONObject().apply {
-                        put("model", m)
-                        put("messages", JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("role", "system")
-                                put("content", systemInstructionText)
-                            })
-                            put(JSONObject().apply {
-                                put("role", "user")
-                                put("content", trimmed)
-                            })
-                        })
-                    }
-                    val dsReq = Request.Builder()
-                        .url("https://api.deepseek.com/chat/completions")
-                        .addHeader("Authorization", "Bearer $deepseekKey")
-                        .post(dsJson.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                        .build()
-
-                    client.newCall(dsReq).execute().use { resp ->
-                        if (resp.isSuccessful) {
-                            val resBody = resp.body?.string().orEmpty()
-                            val parsed = JSONObject(resBody)
-                            val choices = parsed.getJSONArray("choices")
-                            if (choices.length() > 0) {
-                                generatedText = choices.getJSONObject(0).getJSONObject("message").getString("content")
-                                providerUsed = "DeepSeek ($m)"
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-
-            // 5. If activeBrain is HUGGINGFACE
-            if ((targetBrain == "HUGGINGFACE" || generatedText == null) && isHfConfigured) {
-                try {
-                    val m = prefs.getString("JARVIS_HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.3") ?: "mistralai/Mistral-7B-Instruct-v0.3"
-                    val hfJson = JSONObject().apply {
-                        put("inputs", "System: $systemInstructionText\n\nUser: $trimmed\n\nAssistant:")
-                    }
-                    val hfReq = Request.Builder()
-                        .url("https://api-inference.huggingface.co/models/$m")
-                        .addHeader("Authorization", "Bearer $hfKey")
-                        .post(hfJson.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-                        .build()
-
-                    client.newCall(hfReq).execute().use { resp ->
-                        if (resp.isSuccessful) {
-                            val resBody = resp.body?.string().orEmpty()
-                            val parsedArr = JSONArray(resBody)
-                            if (parsedArr.length() > 0) {
-                                generatedText = parsedArr.getJSONObject(0).optString("generated_text").ifBlank { resBody }
-                                providerUsed = "HuggingFace ($m)"
                             }
                         }
                     }

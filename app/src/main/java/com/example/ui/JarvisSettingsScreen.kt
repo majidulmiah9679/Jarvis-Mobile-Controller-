@@ -43,7 +43,7 @@ import com.example.ui.theme.*
 // ENUM & FOLDER STACK FOR SETTINGS REORGANIZATION (VARIATION 01)
 enum class SettingsFolder(val title: String, val subtitle: String) {
     ACCOUNT_PROFILE("ACCOUNT & PROFILE", "Master Identity, Credentials & Voice Biometrics"),
-    GEMINI_API_MODELS("GOOGLE GEMINI API & FREE MODELS", "API Key Setup, Free Key Link, Model Switcher & Live Key Tester"),
+    GEMINI_API_MODELS("GOOGLE GEMINI & GROQ AI", "Simple setup for Google Gemini & Groq Cloud"),
     SYSTEM_DIAGNOSTICS("SYSTEM DIAGNOSTICS & TROUBLESHOOTING", "Live Mic, Online Gemini Brain, Network & Permission Health"),
     NOTIFICATIONS("NOTIFICATIONS", "AI Multi-Brain, Auto Reply (36) & Smart Reader (44)"),
     PRIVACY_SECURITY("PRIVACY & SECURITY", "Sentinel Vault, 253 Apps Audited & Defensive Shield"),
@@ -261,9 +261,9 @@ fun JarvisSettingsScreen(viewModel: JarvisViewModel) {
                         onClick = { activeFolder = SettingsFolder.ACCOUNT_PROFILE }
                     )
 
-                    // 2. GOOGLE GEMINI API & FREE MODELS
+                    // 2. GOOGLE GEMINI & GROQ AI
                     SettingsFolderItemRow(
-                        title = "GOOGLE GEMINI API & FREE MODELS",
+                        title = "GOOGLE GEMINI & GROQ AI",
                         icon = Icons.Default.Key,
                         isDark = isDark,
                         onClick = { activeFolder = SettingsFolder.GEMINI_API_MODELS }
@@ -2135,7 +2135,7 @@ fun JarvisDiagnosticsSubpage(
             DiagnosticItem(
                 label = "AI Model Engine",
                 isOk = true,
-                okDetail = "gemini-2.0-flash / gemini-2.5-flash",
+                okDetail = "gemini-2.5-flash / llama-3.3-70b",
                 failDetail = "None"
             )
 

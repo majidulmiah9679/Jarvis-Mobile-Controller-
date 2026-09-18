@@ -366,6 +366,7 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
     val isProcessing = viewModel.isProcessing
 
     var commandText by remember { mutableStateOf("") }
+    var showAiSideSettings by remember { mutableStateOf(false) }
     val coreLogScrollState = rememberScrollState()
 
     // Auto-scroll to bottom of logs on updates
@@ -532,7 +533,7 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // AI BRAIN STATUS BANNER - BOSS EDITION
+            // AI BRAIN STATUS BANNER - BOSS EDITION (OPENS SIMPLE SIDE SETTING)
             item {
                 Surface(
                     color = Color(0xFF031A0F),
@@ -540,7 +541,7 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
                     border = BorderStroke(1.dp, Color(0xFF00FF88).copy(alpha = 0.5f)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { viewModel.selectTab(3) }
+                        .clickable { showAiSideSettings = true }
                 ) {
                     Row(
                         modifier = Modifier
@@ -555,8 +556,7 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
                             val hasKey = when (viewModel.activeBrain) {
                                 "GROQ" -> viewModel.groqKey.isNotBlank()
                                 "GEMINI" -> viewModel.geminiKey.isNotBlank() || viewModel.apiKey.isNotBlank()
-                                "OPENROUTER" -> viewModel.openrouterKey.isNotBlank()
-                                else -> viewModel.groqKey.isNotBlank() || viewModel.geminiKey.isNotBlank()
+                                else -> viewModel.getEngineKey(viewModel.activeBrain).isNotBlank()
                             }
                             Text(
                                 text = "AI BRAIN: ${viewModel.activeBrain} [${if (hasKey) "ACTIVE" else "NO KEY"}]",
@@ -567,7 +567,7 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
                             )
                         }
                         Text(
-                            text = "[FREE KEYS // EDIT]",
+                            text = "[⚙️ SIDE SETTINGS // EDIT]",
                             color = Color(0xFF00E5FF),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -740,6 +740,56 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
 
         if (viewModel.showVoiceConfigDialog) {
             VoiceConfigDialog(viewModel = viewModel)
+        }
+
+        // Floating AI Brain Side Settings Button on Right Edge of Home Screen
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 2.dp)
+                .clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF00E5FF), Color(0xFF0078FF))
+                    )
+                )
+                .border(
+                    1.dp,
+                    Color.White.copy(alpha = 0.6f),
+                    RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)
+                )
+                .clickable { showAiSideSettings = true }
+                .padding(horizontal = 6.dp, vertical = 12.dp)
+                .testTag("home_ai_side_settings_tab")
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    Icons.Default.Tune,
+                    contentDescription = "AI Side Settings",
+                    tint = Color.Black,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "AI\nBRAIN",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color.Black,
+                    lineHeight = 11.sp
+                )
+            }
+        }
+
+        // Simple Side Settings Sheet for Gemini & Groq
+        if (showAiSideSettings) {
+            JarvisSimpleAiSideSettingsSheet(
+                viewModel = viewModel,
+                onDismiss = { showAiSideSettings = false }
+            )
         }
     }
 }
