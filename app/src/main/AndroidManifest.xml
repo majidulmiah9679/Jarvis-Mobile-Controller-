@@ -47,6 +47,9 @@
     <!-- Package queries so JARVIS can interact with and launch system & third-party apps -->
     <queries>
         <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
@@ -139,6 +142,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Autonomous AI Daemon and Hands-Free Voice Monitoring" />
         </service>
+
+        <!-- True Gemini Live Mode Continuous Always-On Foreground Service -->
+        <service
+            android:name="com.example.service.JarvisLiveService"
+            android:foregroundServiceType="microphone"
+            android:exported="false" />
 
         <!-- Heavy App Locker Biometric Lock Screen Overlay Activity -->
         <activity

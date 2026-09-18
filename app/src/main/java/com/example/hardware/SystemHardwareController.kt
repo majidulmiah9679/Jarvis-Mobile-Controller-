@@ -788,4 +788,80 @@ class SystemHardwareController(private val context: Context) {
         val service = JarvisAutomationService.getInstance()
         return service?.automator?.performGlobalTakeScreenshot() ?: false
     }
+
+    fun dialPhoneNumber(phoneNumber: String) {
+        try {
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phoneNumber)}")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            vibrate(40)
+        } catch (_: Exception) {}
+    }
+
+    fun openCamera(): Boolean {
+        vibrate(40)
+        return try {
+            val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            launchTarget("CAMERA").first
+        }
+    }
+
+    fun openAlarm(): Boolean {
+        vibrate(40)
+        return try {
+            val intent = Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            try {
+                val intent = Intent(Settings.ACTION_DATE_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                true
+            } catch (_: Exception) { false }
+        }
+    }
+
+    fun playSpotify(query: String? = null): Boolean {
+        vibrate(40)
+        if (!query.isNullOrBlank()) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:${Uri.encode(query)}")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                return true
+            } catch (_: Exception) {}
+        }
+        return launchApp("com.spotify.music")
+    }
+
+    fun playYouTube(query: String? = null): Boolean {
+        vibrate(40)
+        if (!query.isNullOrBlank()) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                return true
+            } catch (_: Exception) {}
+        }
+        return launchApp("com.google.android.youtube")
+    }
+
+    fun getMemoryUsage(): Pair<Long, Long> {
+        val memInfo = ActivityManager.MemoryInfo()
+        activityManager?.getMemoryInfo(memInfo)
+        return Pair(memInfo.availMem, memInfo.totalMem)
+    }
 }

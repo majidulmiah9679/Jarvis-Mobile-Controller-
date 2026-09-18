@@ -391,6 +391,15 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
                 Spacer(modifier = Modifier.height(10.dp))
                 CenterCoreDisplayCard(viewModel = viewModel)
                 Spacer(modifier = Modifier.height(10.dp))
+
+                // Big Button: START JARVIS LIVE (with pulsing red dot when active)
+                JarvisBigLiveModeEngageButton(viewModel = viewModel)
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Voice Speaking Visualizer Animation + Subtitle Text of speech_reply
+                JarvisVoiceSpeakingSubtitleVisualizer(viewModel = viewModel)
+                Spacer(modifier = Modifier.height(10.dp))
+
                 HudBottomControlsCards(viewModel = viewModel)
                 Spacer(modifier = Modifier.height(10.dp))
                 GlobalActivityWaveformCard(viewModel = viewModel)
@@ -790,6 +799,329 @@ fun JarvisHomeScreen(viewModel: JarvisViewModel) {
                 viewModel = viewModel,
                 onDismiss = { showAiSideSettings = false }
             )
+        }
+    }
+}
+
+// BIG BUTTON: START JARVIS LIVE (Continuous Hands-Free Gemini Loop with Pulsing Red Dot)
+@Composable
+fun JarvisBigLiveModeEngageButton(viewModel: JarvisViewModel, modifier: Modifier = Modifier) {
+    val isLive = viewModel.isLiveServiceRunning || com.example.service.JarvisLiveService.isLiveActive.collectAsState().value
+    val infiniteTransition = rememberInfiniteTransition(label = "live_pulse")
+
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_scale"
+    )
+
+    Surface(
+        onClick = { viewModel.toggleLiveService() },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(76.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                width = if (isLive) 2.dp else 1.5.dp,
+                brush = if (isLive) {
+                    Brush.horizontalGradient(
+                        listOf(Color(0xFFFF1744), Color(0xFFFF5252), Color(0xFFFF1744))
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        listOf(Color(0xFF00E5FF), Color(0xFF0078FF), Color(0xFF00E5FF))
+                    )
+                },
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        color = if (isLive) Color(0x33FF1744) else Color(0xCC040E24),
+        tonalElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                // Pulsing Status Indicator Indicator
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isLive) Color(0xFFFF1744).copy(alpha = 0.25f)
+                            else Color(0xFF00E5FF).copy(alpha = 0.15f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isLive) {
+                        // Pulsing Red Dot for Live Active
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFF1744).copy(alpha = pulseAlpha))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = "Start Live Mode",
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (isLive) "LIVE MODE ON" else "START JARVIS LIVE",
+                            color = if (isLive) Color(0xFFFF5252) else Color(0xFF00E5FF),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.5.sp
+                        )
+                        if (isLive) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFFF1744),
+                                modifier = Modifier.alpha(pulseAlpha)
+                            ) {
+                                Text(
+                                    text = "REC",
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (isLive) "ALWAYS LISTENING • TAP TO STOP" else "ALWAYS LISTENING • ZERO-TOUCH GEMINI LOOP",
+                        color = if (isLive) Color(0xFFFFCDD2) else Color(0xFF90CAF9),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // Right Pill Action Badge
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = if (isLive) Color(0x55FF1744) else Color(0x3300E5FF),
+                border = BorderStroke(
+                    1.dp,
+                    if (isLive) Color(0xFFFF5252) else Color(0xFF00E5FF).copy(alpha = 0.6f)
+                )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isLive) Icons.Default.StopCircle else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = if (isLive) Color(0xFFFF5252) else Color(0xFF00E5FF),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isLive) "STOP" else "ENGAGE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isLive) Color(0xFFFF5252) else Color(0xFF00E5FF)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// UI: When speaking, show visualizer animation + subtitle text of speech_reply
+@Composable
+fun JarvisVoiceSpeakingSubtitleVisualizer(viewModel: JarvisViewModel, modifier: Modifier = Modifier) {
+    val subtitle = viewModel.currentSubtitleText
+    val isSpeaking = viewModel.isSpeaking
+    val isListening = viewModel.isListening || com.example.service.JarvisLiveService.isListening.collectAsState().value
+    val rms = viewModel.liveAudioRms
+
+    val infiniteTransition = rememberInfiniteTransition(label = "audio_visualizer")
+    val waveAnim by infiniteTransition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "wave_anim"
+    )
+
+    // Show if there is an active subtitle, or currently speaking, or listening
+    if (subtitle.isNotBlank() || isSpeaking || isListening) {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .border(
+                    width = 1.2.dp,
+                    brush = Brush.horizontalGradient(
+                        if (isSpeaking) listOf(Color(0xFF00E5FF), Color(0xFF9D4EDD), Color(0xFF00E5FF))
+                        else if (isListening) listOf(Color(0xFF00E676), Color(0xFF00E5FF))
+                        else listOf(Color(0xFF00E5FF).copy(alpha = 0.5f), Color(0xFF0078FF).copy(alpha = 0.5f))
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xF2040E24),
+            tonalElevation = 4.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                // Top Header with Audio Waveform Bars
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isSpeaking) Icons.Default.RecordVoiceOver else if (isListening) Icons.Default.Mic else Icons.Default.GraphicEq,
+                            contentDescription = "Voice Reply Status",
+                            tint = if (isSpeaking) Color(0xFF00E5FF) else if (isListening) Color(0xFF00E676) else Color(0xFF90CAF9),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isSpeaking) "🎙️ J.A.R.V.I.S. VOICE REPLY" else if (isListening) "LISTENING TO VOICE..." else "VOICE SUBTITLE",
+                            color = if (isSpeaking) Color(0xFF00E5FF) else if (isListening) Color(0xFF00E676) else Color(0xFF90CAF9),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+
+                    // 12 Neon Visualizer Bars
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        for (i in 0 until 10) {
+                            val barHeightFactor = if (isSpeaking) {
+                                ((kotlin.math.sin(i * 0.7f + waveAnim * 3f) + 1f) / 2f).coerceIn(0.2f, 1f)
+                            } else if (isListening) {
+                                ((rms * 1.5f + (i % 3) * 0.2f)).coerceIn(0.2f, 1f)
+                            } else 0.25f
+
+                            Box(
+                                modifier = Modifier
+                                    .width(3.dp)
+                                    .height((8.dp + 16.dp * barHeightFactor))
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(
+                                        if (isSpeaking) {
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF00FFFF), Color(0xFF9D4EDD))
+                                            )
+                                        } else if (isListening) {
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF00E676), Color(0xFF00B0FF))
+                                            )
+                                        } else {
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF00E5FF).copy(alpha = 0.4f), Color(0xFF0078FF).copy(alpha = 0.3f))
+                                            )
+                                        }
+                                    )
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Subtitle Content Text (High contrast, clearly legible)
+                Text(
+                    text = subtitle.ifBlank { if (isListening) "Listening for your command, Boss..." else "System neural link ready." },
+                    color = Color(0xFFF0F6FC),
+                    fontSize = 13.5.sp,
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Normal,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Bottom Subtitle Control Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (subtitle.isNotBlank()) {
+                        IconButton(
+                            onClick = { viewModel.speak(subtitle) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = "Repeat speech",
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        IconButton(
+                            onClick = { viewModel.currentSubtitleText = "" },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss subtitle",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
